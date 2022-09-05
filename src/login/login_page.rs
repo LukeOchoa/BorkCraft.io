@@ -71,9 +71,10 @@ pub fn login(the_self: &mut BorkCraft, ui: &mut egui::Ui) {
                     }
                 },
                 Err(error) => {
-                    the_self
-                        .error_message
-                        .impure_set_error_message(Some(error.to_string()), true);
+                    the_self.error_message.impure_set_error_message(
+                        handle_response_failure(&error.to_string()),
+                        true,
+                    );
                 }
             }
         }
@@ -96,9 +97,14 @@ fn handle_response_success(response: Response) {
 // parse the error and return a user friendly error
 fn handle_response_failure(status_code: &str) -> Option<String> {
     // create a comprehensive list of error messages for the user's understanding
-    // to show what went wrong
-    //match error {
-
-    //}
-    Some(status_code.to_string())
+    match status_code {
+        "403" => Some(format!(
+            "Your request was deemed invalid, username/password failed to be correct: {}",
+            status_code.to_string()
+        )),
+        _ => Some(format!(
+            "Your network request did not go through: {}",
+            status_code.to_string()
+        )),
+    }
 }
