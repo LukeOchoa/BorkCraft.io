@@ -1,7 +1,10 @@
-use crate::borkcraft_app::{BorkCraft, SessionTime};
+use crate::borkcraft_app::{BorkCraft, SessionInformation, SessionTime};
 use eframe::egui;
 use serde_derive::Serialize;
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    sync::{Arc, Mutex},
+};
 
 use ureq::{Error, Response};
 
@@ -62,7 +65,9 @@ pub fn login(the_self: &mut BorkCraft, ui: &mut egui::Ui) {
             let did_request_go_through = submit_login_information(the_self.login_form.clone());
             match did_request_go_through {
                 Ok(response) => match response.status() {
-                    202 => handle_response_success(response),
+                    202 => {
+                        handle_response_success(response, Arc::clone(&the_self.session_information))
+                    }
                     _ => {
                         the_self.error_message.impure_set_error_message(
                             handle_response_failure(response.status_text()),
@@ -81,18 +86,19 @@ pub fn login(the_self: &mut BorkCraft, ui: &mut egui::Ui) {
     });
 }
 
-// 3) spin up a thread that continually tracks how long until the session expires
-// this function takes the user's login info and makes a post request. Then it returns the response
-
 fn submit_login_information(login_form: LoginForm) -> Result<Response, Error> {
     let result = ureq::post("http://localhost:8123/nativelogin2").send_json(login_form);
 
     result
 }
 
-fn handle_response_success(response: Response) {
+fn handle_response_success(
+    response: Response,
+    session_information: Arc<Mutex<SessionInformation>>,
+) {
     let session_time: SessionTime = response.into_json().unwrap();
-    println!("Time until Session expires: |{:?}|", session_time)
+    session_information.lock().unwrap().key = session_time.key.clone();
+    session_information.lock().unwrap().session_time = session_time;
 }
 
 // parse the error and return a user friendly error
