@@ -49,6 +49,7 @@ pub fn current_session_time(
                 if response.status() == 202 {
                     let a_time: TimeTime = response.into_json().unwrap();
                     let one = "1".to_string();
+                    // if the session is expired; i.e. if all time is less than one second
                     if a_time.hour < one && a_time.minute < one && a_time.second < one {
                         session_information.lock().unwrap().is_logged_in = false
                     }

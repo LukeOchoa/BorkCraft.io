@@ -31,32 +31,6 @@ impl ImageCache {
     }
 }
 
-//#[derive(Default)]
-//pub struct SessionInformation {
-//pub key: String,
-//pub session_time: SessionTime,
-//pub is_logged_in: bool,
-//}
-
-//#[derive(Deserialize, Serialize, Debug, Default)]
-//pub struct SessionTime {
-//pub key: String,
-//pub time: TimeTime,
-//}
-//#[derive(Deserialize, Serialize, Debug, Default)]
-//pub struct TimeTime {
-//pub hour: String,
-//pub minute: String,
-//pub second: String,
-//}
-
-//impl SessionInformation {
-//pub fn default() -> Self {
-//let instance: Self = Default::default();
-//instance
-//}
-//}
-
 fn handle_errors(an_error: &mut ErrorMessage, ctx: &egui::Context, ui: &mut egui::Ui) {
     an_error.is_window_open = an_error.display_error(ctx);
     an_error.impure_open_error_window_on_click(ui);

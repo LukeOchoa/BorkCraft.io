@@ -55,33 +55,38 @@ impl LoginForm {
 
 pub fn login(the_self: &mut BorkCraft, ui: &mut egui::Ui) {
     egui::Grid::new(1).show(ui, |ui| {
-        for item in LOGIN_FORM.iter() {
-            ui.label(item.clone());
-            ui.add(egui::TextEdit::singleline(&mut the_self.login_form[item]));
-            ui.end_row();
-        }
+        if !the_self.session_information.lock().unwrap().is_logged_in {
+            for item in LOGIN_FORM.iter() {
+                ui.label(item.clone());
+                ui.add(egui::TextEdit::singleline(&mut the_self.login_form[item]));
+                ui.end_row();
+            }
 
-        if ui.button("Login...!").clicked() {
-            let did_request_go_through = submit_login_information(the_self.login_form.clone());
-            match did_request_go_through {
-                Ok(response) => match response.status() {
-                    202 => {
-                        handle_response_success(response, Arc::clone(&the_self.session_information))
-                    }
-                    _ => {
+            if ui.button("Login...!").clicked() {
+                let did_request_go_through = submit_login_information(the_self.login_form.clone());
+                match did_request_go_through {
+                    Ok(response) => match response.status() {
+                        202 => handle_response_success(
+                            response,
+                            Arc::clone(&the_self.session_information),
+                        ),
+                        _ => {
+                            the_self.error_message.impure_set_error_message(
+                                handle_response_failure(response.status_text()),
+                                true,
+                            );
+                        }
+                    },
+                    Err(error) => {
                         the_self.error_message.impure_set_error_message(
-                            handle_response_failure(response.status_text()),
+                            handle_response_failure(&error.to_string()),
                             true,
                         );
                     }
-                },
-                Err(error) => {
-                    the_self.error_message.impure_set_error_message(
-                        handle_response_failure(&error.to_string()),
-                        true,
-                    );
                 }
             }
+        } else {
+            ui.label("Your already logged in!");
         }
     });
 }
@@ -99,6 +104,7 @@ fn handle_response_success(
     let session_time: SessionTime = response.into_json().unwrap();
     session_information.lock().unwrap().key = session_time.key.clone();
     session_information.lock().unwrap().session_time = session_time;
+    session_information.lock().unwrap().is_logged_in = true;
 }
 
 // parse the error and return a user friendly error
