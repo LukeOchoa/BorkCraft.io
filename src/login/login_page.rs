@@ -83,6 +83,7 @@ pub fn login(the_self: &mut BorkCraft, ui: &mut egui::Ui) {
 
 // 3) spin up a thread that continually tracks how long until the session expires
 // this function takes the user's login info and makes a post request. Then it returns the response
+
 fn submit_login_information(login_form: LoginForm) -> Result<Response, Error> {
     let result = ureq::post("http://localhost:8123/nativelogin2").send_json(login_form);
 
@@ -108,3 +109,5 @@ fn handle_response_failure(status_code: &str) -> Option<String> {
         )),
     }
 }
+
+//fn dynamic_handle_response_failure(status_code: &str, ) {}
