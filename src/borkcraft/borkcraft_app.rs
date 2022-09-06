@@ -9,11 +9,7 @@ use egui_extras::RetainedImage;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, Once},
-    thread, time,
 };
-
-// Other
-use serde_derive::Serialize;
 
 static START: Once = Once::new();
 
@@ -82,33 +78,6 @@ impl Default for BorkCraft {
             session_information: session_informationx,
         }
     }
-}
-
-#[derive(Serialize)]
-struct Key {
-    key: String,
-}
-fn current_session_time(session_information: Arc<Mutex<SessionInformation>>, ctx: egui::Context) {
-    thread::spawn(move || loop {
-        let result = ureq::post("http://localhost:8123/sessiontimeleft").send_json(Key {
-            key: session_information.lock().unwrap().session_time.key.clone(),
-        });
-        match result {
-            Ok(response) => {
-                if response.status() == 202 {
-                    let a_time: TimeTime = response.into_json().unwrap();
-                    let one = "1".to_string();
-                    if a_time.hour < one && a_time.minute < one && a_time.second < one {
-                        session_information.lock().unwrap().is_logged_in = false
-                    }
-                    session_information.lock().unwrap().session_time.time = a_time;
-                    ctx.request_repaint();
-                }
-            }
-            Err(_) => {}
-        }
-        thread::sleep(time::Duration::from_secs(3));
-    });
 }
 
 fn display_session_time_left(ui: &mut egui::Ui, time_left: &TimeTime) {
