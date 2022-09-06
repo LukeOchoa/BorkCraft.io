@@ -73,11 +73,17 @@ pub struct BorkCraft {
 
 impl Default for BorkCraft {
     fn default() -> Self {
+        let session_timex = Arc::new(Mutex::new(SessionInformation {
+            key: String::default(),
+            session_time: SessionTime::default(),
+            is_logged_in: bool::default(),
+        }));
+        current_session_time(Arc::clone(&session_timex));
         Self {
             image_cache: Arc::new(Mutex::new(ImageCache::default())),
             login_form: LoginForm::default(),
             error_message: ErrorMessage::default(),
-            session_time: Arc::new(Mutex::new(SessionInformation::default())),
+            session_time: session_timex,
         }
     }
 }
@@ -89,12 +95,12 @@ fn current_session_time(session_information: Arc<Mutex<SessionInformation>>) {
         match result {
             Ok(response) => {
                 if response.status() == 202 {
-                    //session_information.lock().unwrap().time = response.into_json().unwrap();
                     let a_time: TimeTime = response.into_json().unwrap();
                     let one = "1".to_string();
                     if a_time.hour < one && a_time.minute < one && a_time.second < one {
                         session_information.lock().unwrap().is_logged_in = false
                     }
+                    session_information.lock().unwrap().session_time.time = a_time;
                 }
             }
             Err(_) => {}
