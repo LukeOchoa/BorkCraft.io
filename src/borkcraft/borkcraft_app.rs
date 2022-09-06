@@ -1,5 +1,5 @@
 // my crate imports
-use crate::{errors::client_errors::*, login::login_page::*};
+pub use crate::{errors::client_errors::*, login::login_page::*, sessions::*};
 
 // emilk imports
 use eframe::egui;
@@ -13,7 +13,7 @@ use std::{
 };
 
 // Other
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Serialize;
 
 static START: Once = Once::new();
 
@@ -35,31 +35,31 @@ impl ImageCache {
     }
 }
 
-#[derive(Default)]
-pub struct SessionInformation {
-    pub key: String,
-    pub session_time: SessionTime,
-    pub is_logged_in: bool,
-}
+//#[derive(Default)]
+//pub struct SessionInformation {
+//pub key: String,
+//pub session_time: SessionTime,
+//pub is_logged_in: bool,
+//}
 
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub struct SessionTime {
-    pub key: String,
-    pub time: TimeTime,
-}
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub struct TimeTime {
-    pub hour: String,
-    pub minute: String,
-    pub second: String,
-}
+//#[derive(Deserialize, Serialize, Debug, Default)]
+//pub struct SessionTime {
+//pub key: String,
+//pub time: TimeTime,
+//}
+//#[derive(Deserialize, Serialize, Debug, Default)]
+//pub struct TimeTime {
+//pub hour: String,
+//pub minute: String,
+//pub second: String,
+//}
 
-impl SessionInformation {
-    pub fn default() -> Self {
-        let instance: Self = Default::default();
-        instance
-    }
-}
+//impl SessionInformation {
+//pub fn default() -> Self {
+//let instance: Self = Default::default();
+//instance
+//}
+//}
 
 fn handle_errors(an_error: &mut ErrorMessage, ctx: &egui::Context, ui: &mut egui::Ui) {
     an_error.is_window_open = an_error.display_error(ctx);
