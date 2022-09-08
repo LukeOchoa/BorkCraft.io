@@ -116,6 +116,7 @@ dependencies = [
  "image",
  "serde",
  "serde_derive",
+ "serde_json",
  "ureq",
 ]
 

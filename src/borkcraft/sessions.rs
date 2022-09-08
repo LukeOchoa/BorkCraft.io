@@ -8,7 +8,7 @@ use std::{
 #[derive(Default)]
 pub struct SessionInformation {
     pub key: String,
-    pub session_time: SessionTime,
+    pub time: TimeTime,
     pub is_logged_in: bool,
 }
 
@@ -42,7 +42,7 @@ pub fn current_session_time(
 ) {
     thread::spawn(move || loop {
         let result = ureq::post("http://localhost:8123/sessiontimeleft").send_json(Key {
-            key: session_information.lock().unwrap().session_time.key.clone(),
+            key: session_information.lock().unwrap().key.clone(),
         });
         match result {
             Ok(response) => {
@@ -53,7 +53,7 @@ pub fn current_session_time(
                     if a_time.hour < one && a_time.minute < one && a_time.second < one {
                         session_information.lock().unwrap().is_logged_in = false
                     }
-                    session_information.lock().unwrap().session_time.time = a_time;
+                    session_information.lock().unwrap().time = a_time;
                     ctx.request_repaint();
                 }
             }

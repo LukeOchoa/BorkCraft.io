@@ -11,7 +11,11 @@ use std::{
     sync::{Arc, Mutex, Once},
 };
 
+const LOGIN_FORM: &'static [&'static str] = &["username", "password"];
 static START: Once = Once::new();
+
+const LOGOUT: &'static str = "http://localhost:8123/nativelogout";
+const LOGIN: &'static str = "http://localhost:8123/nativelogin2";
 
 #[derive(Default)]
 pub struct ImageCache {
@@ -67,11 +71,8 @@ impl eframe::App for BorkCraft {
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             handle_errors(&mut self.error_message, ctx, ui);
-            login(self, ui);
-            display_session_time_left(
-                ui,
-                &self.session_information.lock().unwrap().session_time.time,
-            );
+            login(self, ui, LOGIN_FORM, LOGIN, LOGOUT);
+            display_session_time_left(ui, &self.session_information.lock().unwrap().time);
         });
     }
 }
