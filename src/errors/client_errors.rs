@@ -14,10 +14,10 @@ impl ErrorMessage {
     pub fn impure_set_error_message(
         &mut self,
         error_message: Option<String>,
-        is_window_shut: bool,
+        is_window_open: bool,
     ) {
         self.error = error_message;
-        self.is_window_open = is_window_shut;
+        self.is_window_open = is_window_open;
     }
     pub fn impure_open_error_window_on_click(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new(3).show(ui, |ui| {

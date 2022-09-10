@@ -1,6 +1,7 @@
 use crate::{
     borkcraft_app::{BorkCraft, SessionInformation, SessionTime},
     errors::client_errors::ErrorMessage,
+    to_vec8,
 };
 use eframe::egui;
 use serde::Serialize;
@@ -51,22 +52,6 @@ impl LoginForm {
     }
 }
 
-pub fn did_logout_succeed(did_request_go_through: Result<Response, Error>) -> Option<ErrorMessage> {
-    let mut error_message = ErrorMessage::default();
-
-    match did_request_go_through {
-        Ok(response) => match response.status() {
-            202 => return None,
-            _ => panic!("Something went very wrong...?"),
-        },
-        Err(error) => {
-            let error_string = handle_response_failure(&error.to_string());
-            error_message.impure_set_error_message(error_string, true);
-            return Some(error_message);
-        }
-    }
-}
-
 pub fn login(
     the_self: &mut BorkCraft,
     ui: &mut egui::Ui,
@@ -104,6 +89,8 @@ pub fn login(
                             let error_string = handle_response_failure(response.status_text());
                             the_self
                                 .error_message
+                                .lock()
+                                .unwrap()
                                 .impure_set_error_message(error_string, true);
                         }
                     },
@@ -112,6 +99,8 @@ pub fn login(
                         let error_string = handle_response_failure(&error_string);
                         the_self
                             .error_message
+                            .lock()
+                            .unwrap()
                             .impure_set_error_message(error_string, true);
                     }
                 }
@@ -127,7 +116,7 @@ pub fn login(
                 // Check if http request was sucessfull #Mutations
                 let result = did_logout_succeed(did_request_go_through);
                 if let Some(set_error_message) = result {
-                    the_self.error_message = set_error_message;
+                    *the_self.error_message.lock().unwrap() = set_error_message;
                 } else {
                     // On YES, reset (session and login form) state
                     *the_self.session_information.lock().unwrap() = SessionInformation::default();
@@ -136,6 +125,22 @@ pub fn login(
             }
         }
     });
+}
+
+pub fn did_logout_succeed(did_request_go_through: Result<Response, Error>) -> Option<ErrorMessage> {
+    let mut error_message = ErrorMessage::default();
+
+    match did_request_go_through {
+        Ok(response) => match response.status() {
+            202 => return None,
+            _ => panic!("Something went very wrong...?"), // prob change this to err mssg
+        },
+        Err(error) => {
+            let error_string = handle_response_failure(&error.to_string());
+            error_message.impure_set_error_message(error_string, true);
+            return Some(error_message);
+        }
+    }
 }
 
 fn err_to_string(error: Error) -> String {
@@ -147,9 +152,9 @@ fn err_to_string(error: Error) -> String {
     }
 }
 
-fn to_vec8(cereal: &impl Serialize) -> Vec<u8> {
-    serde_json::to_vec(cereal).unwrap()
-}
+//fn to_vec8(cereal: &impl Serialize) -> Vec<u8> {
+//    serde_json::to_vec(cereal).unwrap()
+//}
 
 fn submit_bytes_to_url(body: Vec<u8>, url: &String) -> Result<Response, Error> {
     let result = ureq::post(url).send_bytes(&body);
