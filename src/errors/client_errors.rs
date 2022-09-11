@@ -19,6 +19,13 @@ impl ErrorMessage {
         self.error = error_message;
         self.is_window_open = is_window_open;
     }
+    pub fn pure_error_message(error_message: Option<String>) -> ErrorMessage {
+        ErrorMessage {
+            error: error_message,
+            is_window_open: true,
+            try_to_open_window: false,
+        }
+    }
     pub fn impure_open_error_window_on_click(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new(3).show(ui, |ui| {
             if ui.button("Open error window").clicked() {
@@ -44,7 +51,7 @@ impl ErrorMessage {
                     ui.label(error_message);
                 });
         }
-
         is_window_shut
     }
+    //pub fn error_job(error_reason: &str, error_string: String) -> ErrorMessage{}
 }

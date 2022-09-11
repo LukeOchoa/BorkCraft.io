@@ -1,10 +1,9 @@
 use crate::{
     borkcraft_app::{BorkCraft, SessionInformation, SessionTime},
     errors::client_errors::ErrorMessage,
-    to_vec8,
+    to_vec8, ureq_did_request_go_through_f, ResponseResult,
 };
 use eframe::egui;
-use serde::Serialize;
 use serde_derive::Serialize;
 use std::ops::{Index, IndexMut};
 use ureq::{Error, Response};
@@ -76,34 +75,49 @@ pub fn login(
                     &const_login_url.to_string(),
                 );
                 // Check the response #Mutations
-                match did_request_go_through {
-                    Ok(response) => match response.status() {
-                        202 => {
-                            // Write the response data to state
-                            *the_self.session_information.lock().unwrap() =
-                                login_response_to_session_information(response);
-                            the_self.login_form.session_key =
-                                the_self.session_information.lock().unwrap().key.clone();
+                let result = ureq_did_request_go_through_f(
+                    did_request_go_through,
+                    Box::new(|response: ureq::Response| {
+                        return Ok(ResponseResult::SessionInformation(
+                            login_response_to_session_information(response),
+                        ));
+                    }),
+                );
+                match result {
+                    Ok(response_result) => {
+                        if let ResponseResult::SessionInformation(session_information) =
+                            response_result
+                        {
+                            the_self.login_form.session_key = session_information.key.clone();
+                            *the_self.session_information.lock().unwrap() = session_information;
+                        } else {
+                            panic!("Magical Faires occured at line 91 in login_page.rs");
                         }
-                        _ => {
-                            let error_string = handle_response_failure(response.status_text());
-                            the_self
-                                .error_message
-                                .lock()
-                                .unwrap()
-                                .impure_set_error_message(error_string, true);
-                        }
-                    },
-                    Err(error) => {
-                        let error_string = err_to_string(error);
-                        let error_string = handle_response_failure(&error_string);
-                        the_self
-                            .error_message
-                            .lock()
-                            .unwrap()
-                            .impure_set_error_message(error_string, true);
                     }
+                    Err(error) => *the_self.error_message.lock().unwrap() = error,
                 }
+                // match did_request_go_through {
+                //     Ok(response) => match response.status() {
+                //         202 => {
+                //             // Write the response data to state
+                //             *the_self.session_information.lock().unwrap() =
+                //                 login_response_to_session_information(response);
+                //             the_self.login_form.session_key =
+                //                 the_self.session_information.lock().unwrap().key.clone();
+                //         }
+                //         _ => {
+                //             let error_string = handle_response_failure(response.status_text());
+                //             *the_self.error_message.lock().unwrap() =
+                //                 ErrorMessage::pure_error_message(error_string);
+                //         }
+                //     },
+                //     Err(error) => {
+                //         let error_string = err_to_string(error);
+                //         let error_string = handle_response_failure(&error_string);
+                //         *the_self.error_message.lock().unwrap() =
+                //             ErrorMessage::pure_error_message(error_string);
+                //     }
+                // }
             }
         } else {
             ui.label("Your already logged in!");
@@ -128,8 +142,6 @@ pub fn login(
 }
 
 pub fn did_logout_succeed(did_request_go_through: Result<Response, Error>) -> Option<ErrorMessage> {
-    let mut error_message = ErrorMessage::default();
-
     match did_request_go_through {
         Ok(response) => match response.status() {
             202 => return None,
@@ -137,24 +149,19 @@ pub fn did_logout_succeed(did_request_go_through: Result<Response, Error>) -> Op
         },
         Err(error) => {
             let error_string = handle_response_failure(&error.to_string());
-            error_message.impure_set_error_message(error_string, true);
-            return Some(error_message);
+            return Some(ErrorMessage::pure_error_message(error_string));
         }
     }
 }
 
-fn err_to_string(error: Error) -> String {
-    if let Error::Status(u16boi, _) = error {
-        return u16boi.to_string();
-    } else {
-        //panic!("Magical Faries have occured...!")
-        return "Could not connect to server...?!".to_string();
-    }
-}
-
-//fn to_vec8(cereal: &impl Serialize) -> Vec<u8> {
-//    serde_json::to_vec(cereal).unwrap()
-//}
+// fn err_to_string(error: Error) -> String {
+//     if let Error::Status(u16boi, _) = error {
+//         return u16boi.to_string();
+//     } else {
+//         //panic!("Magical Faries have occured...!")
+//         return "Could not connect to server...?!".to_string();
+//     }
+// }
 
 fn submit_bytes_to_url(body: Vec<u8>, url: &String) -> Result<Response, Error> {
     let result = ureq::post(url).send_bytes(&body);

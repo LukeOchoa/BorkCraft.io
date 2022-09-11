@@ -1,4 +1,3 @@
-use crate::pages::nether_portals;
 // my crate imports
 pub use crate::{
     errors::client_errors::*, login::login_page::*, pages::nether_portals::*, sessions::*,
@@ -7,7 +6,6 @@ pub use crate::{
 // emilk imports
 use eframe::egui;
 use egui_extras::RetainedImage;
-use serde_json::Value;
 
 // standard library
 use std::{
@@ -52,15 +50,13 @@ pub struct BorkCraft {
 
 impl Default for BorkCraft {
     fn default() -> Self {
-        let session_informationx = Arc::new(Mutex::new(SessionInformation::default()));
-        let nether_portalsx = Arc::new(Mutex::new(Vec::new()));
         Self {
             image_cache: Arc::new(Mutex::new(ImageCache::default())),
             login_form: LoginForm::default(),
             error_message: Arc::new(Mutex::new(ErrorMessage::default())),
-            session_information: session_informationx,
+            session_information: Arc::new(Mutex::new(SessionInformation::default())),
             selected_modal_page: "".to_string(),
-            nether_portals: nether_portalsx,
+            nether_portals: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
@@ -90,53 +86,9 @@ fn modal_machine(
         });
 }
 
-//pub fn retrieve_user() {
-//    let ob = ureq::get("http://localhost:8123/netherportals")
-//        .call()
-//        .unwrap()
-//        .into_string()
-//        .unwrap();
-//
-//    let newob = serde_json::from_str::<serde_json::Value>(&ob).unwrap();
-//    //println!("\n\n\n\n newob: {}", newob["AllNetherPortals"]);
-//
-//    match newob {
-//        Value::Null => println!("It was null!"),
-//        Value::Bool(_boolean) => println!("It was a boolean!"),
-//        Value::Number(_number) => println!("It was a number!"),
-//        Value::String(_string) => println!("It was a String!"),
-//        Value::Array(_vec) => println!("It was a Vector!"),
-//        Value::Object(map) => println!("It was a map!\n {}", map["AllNetherPortals"][0]["Nether"]),
-//    }
-//}
-
-fn retrieve_keys_to_nether_portals() -> Option<HashMap<i32, String>> {
-    let result = ureq::get("http://localhost:8123/somelist")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap();
-    let hopefully_a_map = serde_json::from_str::<serde_json::Value>(&result).unwrap();
-    match hopefully_a_map {
-        Value::Object(map) => {
-            let mut hashy: HashMap<i32, String> = HashMap::default();
-            for (key, value) in map {
-                hashy.insert(
-                    key.parse::<i32>().unwrap(),
-                    value.as_str().unwrap().to_string(),
-                );
-            }
-            return Some(hashy);
-        }
-        _ => return None,
-    }
-}
-
 impl eframe::App for BorkCraft {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         START.call_once(|| {
-            //let keysagain = retrieve_keys_to_nether_portals().unwrap();
-            //println!("keys hopefully: \n{:?}", keysagain.get(&1).unwrap());
             current_session_time(Arc::clone(&self.session_information), ctx.clone());
         });
         egui::CentralPanel::default().show(ctx, |ui| {
