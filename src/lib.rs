@@ -15,6 +15,7 @@ pub fn to_vec8(cereal: &impl Serialize) -> Vec<u8> {
 pub enum ResponseResult {
     Text(String),
     SessionInformation(SessionInformation),
+    NetherPortal(NetherPortal),
 }
 pub fn ureq_did_request_go_through_f(
     did_request_go_through: Result<ureq::Response, ureq::Error>,
