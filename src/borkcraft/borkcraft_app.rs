@@ -49,6 +49,7 @@ pub struct BorkCraft {
     pub selected_modal_page: String,
     pub modal_nether_portal: NetherPortalModal,
     pub nether_portals: Arc<Mutex<NetherPortalInformation>>,
+    pub all_nether_portal_information: Arc<Mutex<Option<NewNetherPortalInformation>>>,
 }
 
 impl Default for BorkCraft {
@@ -64,6 +65,7 @@ impl Default for BorkCraft {
                 modal_list: Arc::new(Mutex::new(None)),
             },
             nether_portals: Arc::new(Mutex::new(NetherPortalInformation::default())),
+            all_nether_portal_information: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -82,7 +84,6 @@ fn display_session_time_left(ui: &mut egui::Ui, time_left: &TimeTime) {
 pub fn modal_machine(
     selected_modal: &mut String,
     ui: &mut egui::Ui,
-    //const_page_options: &'static [&'static str],
     const_page_options: &Vec<String>,
     ui_id: i32,
 ) {
@@ -114,7 +115,11 @@ impl eframe::App for BorkCraft {
 
             match self.selected_modal_page.as_str() {
                 "Login" => login(self, ui, LOGIN_FORM, LOGIN_URL, LOGOUT_URL),
-                "Nether Portals" => nether_portal(self, ui, NETHER_PORTAL_KEYS_URL, MEMBER_IDS_URL),
+                "Nether Portals" => new_nether_portal(
+                    &mut self.error_message,
+                    &mut self.all_nether_portal_information,
+                    ui,
+                ), //nether_portal(self, ui, NETHER_PORTAL_KEYS_URL, MEMBER_IDS_URL),
                 _ => {
                     ui.label("Where would you like to go Borker...?");
                 }
@@ -122,3 +127,21 @@ impl eframe::App for BorkCraft {
         });
     }
 }
+
+// fn _some_function(ui: &mut egui::Ui, _ctx: &egui::Context) {
+//     //egui::ScrollArea::vertical().show(ui, |ui| {
+//     //.drag_bounds(egui::Rect {
+//     //    min: egui::pos2(30.0, 30.0),
+//     //    max: egui::pos2(300.0, 300.0),
+//     //})
+//     egui::Resize::default()
+//         .default_height(100.0)
+//         .show(ui, |ui| {
+//             ui.horizontal_wrapped(|ui| {
+//                 for i in 0..100 {
+//                     ui.label(i.to_string());
+//                 }
+//             });
+//         });
+//     //});
+// }

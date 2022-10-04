@@ -23,7 +23,6 @@ pub struct TimeTime {
     pub minute: String,
     pub second: String,
 }
-
 impl SessionInformation {
     pub fn default() -> Self {
         let instance: Self = Default::default();
