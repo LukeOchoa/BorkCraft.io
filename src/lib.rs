@@ -1,7 +1,9 @@
 mod borkcraft;
 mod errors;
+mod images;
 mod login;
 mod pages;
+mod windows;
 
 pub use borkcraft::*;
 use borkcraft_app::SessionInformation;
@@ -88,20 +90,26 @@ mod eframe_tools {
         type Tooth = Option<String>;
 
         pub enum ModalMachineGear<'a> {
+            #[allow(dead_code)]
             Constant(&'static Vec<String>),
             Immutable(&'a Vec<String>),
+            #[allow(dead_code)]
             Mutable(&'a mut Vec<String>),
         }
         pub fn modal_machine(
             selected_modal: &mut String,
             ui: &mut eframe::egui::Ui,
-            //const_page_options: &'static Vec<String>,
             gear: ModalMachineGear,
+            label: Option<&str>,
             ui_id: i32,
         ) -> Tooth {
+            let some_label = match label {
+                Some(text) => text,
+                None => "",
+            };
             let mut some_tooth: Tooth = None;
             ui.push_id(ui_id, |ui| {
-                eframe::egui::ComboBox::from_label("Choose a Modal...!")
+                eframe::egui::ComboBox::from_label(some_label)
                     .selected_text(selected_modal.clone())
                     .show_ui(ui, |ui| {
                         let mut wheel = |some_gear: &Vec<String>| {
@@ -137,7 +145,7 @@ mod eframe_tools {
             }
         }
 
-        pub fn try_modal_machine(
+        pub fn _try_modal_machine(
             nether_portal_information_am: &Arc<Mutex<Option<NewNetherPortalInformation>>>,
             mut action: impl FnMut(Tooth),
             ui: &mut eframe::egui::Ui,
@@ -154,39 +162,11 @@ mod eframe_tools {
                             ModalMachineGear::Immutable(
                                 &nether_portal_information.modal_information.modal_list,
                             ),
+                            Some("Select A NetherPortal"),
                             88,
                         );
                         action(tooth)
                         //act_on_tooth(tooth, |some_option| action(some_option));
-                    }
-                    None => {
-                        ui.spinner();
-                    }
-                },
-                Err(_) => {
-                    ui.spinner();
-                }
-            }
-        }
-        pub fn try_nether_portal_information(
-            nether_portal_information_am: &Arc<Mutex<Option<NewNetherPortalInformation>>>,
-            mut action: impl FnMut(&mut NewNetherPortalInformation),
-            ui: &mut eframe::egui::Ui,
-        ) {
-            match nether_portal_information_am.try_lock() {
-                Ok(mut guarded_option) => match &mut *guarded_option {
-                    Some(nether_portal_information) => {
-                        //let tooth = modal_machine(
-                        //    &mut nether_portal_information.modal_information.modal,
-                        //    ui,
-                        //    ModalMachineGear::Immutable(
-                        //        &nether_portal_information.modal_information.modal_list,
-                        //    ),
-                        //    88,
-                        //);
-                        //action(tooth)
-                        //act_on_tooth(tooth, |some_option| action(some_option));
-                        action(nether_portal_information);
                     }
                     None => {
                         ui.spinner();

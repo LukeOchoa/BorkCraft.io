@@ -1,6 +1,7 @@
 // my crate imports
 pub use crate::{
     errors::client_errors::*, login::login_page::*, pages::nether_portals::*, sessions::*,
+    windows::client_windows::WindowMessage,
 };
 
 // emilk imports
@@ -15,13 +16,13 @@ use std::{
 };
 
 const LOGIN_FORM: &'static [&'static str] = &["username", "password"];
-const PAGE_OPTIONS: &'static [&'static str] = &["Login", "Nether Portals"];
+//const PAGE_OPTIONS: &'static [&'static str] = &["Login", "Nether Portals"];
 static START: Once = Once::new();
 
 const LOGOUT_URL: &'static str = "http://localhost:8123/nativelogout";
 const LOGIN_URL: &'static str = "http://localhost:8123/nativelogin2";
-const NETHER_PORTAL_KEYS_URL: &'static str = "http://localhost:8123/somelist";
-const MEMBER_IDS_URL: &'static str = "http://localhost:8123/sendmember?id=";
+//const NETHER_PORTAL_KEYS_URL: &'static str = "http://localhost:8123/somelist";
+//const MEMBER_IDS_URL: &'static str = "http://localhost:8123/sendmember?id=";
 
 #[derive(Default)]
 pub struct ImageCache {
@@ -45,10 +46,10 @@ pub struct BorkCraft {
     pub image_cache: Arc<Mutex<ImageCache>>,
     pub login_form: LoginForm,
     pub error_message: Arc<Mutex<ErrorMessage>>,
+    pub window_message: Arc<Mutex<WindowMessage>>,
     pub session_information: Arc<Mutex<SessionInformation>>,
     pub selected_modal_page: String,
     pub modal_nether_portal: NetherPortalModal,
-    pub nether_portals: Arc<Mutex<NetherPortalInformation>>,
     pub all_nether_portal_information: Arc<Mutex<Option<NewNetherPortalInformation>>>,
 }
 
@@ -58,13 +59,14 @@ impl Default for BorkCraft {
             image_cache: Arc::new(Mutex::new(ImageCache::default())),
             login_form: LoginForm::default(),
             error_message: Arc::new(Mutex::new(ErrorMessage::default())),
+            window_message: Arc::new(Mutex::new(WindowMessage::default())),
             session_information: Arc::new(Mutex::new(SessionInformation::default())),
             selected_modal_page: "".to_string(),
             modal_nether_portal: NetherPortalModal {
                 modal: "".to_string(),
                 modal_list: Arc::new(Mutex::new(None)),
             },
-            nether_portals: Arc::new(Mutex::new(NetherPortalInformation::default())),
+            //nether_portals: Arc::new(Mutex::new(NetherPortalInformation::default())),
             all_nether_portal_information: Arc::new(Mutex::new(None)),
         }
     }
@@ -74,11 +76,18 @@ fn handle_errors(an_error: &mut ErrorMessage, ctx: &egui::Context, ui: &mut egui
     an_error.is_window_open = an_error.display_error(ctx);
     an_error.impure_open_error_window_on_click(ui);
 }
+fn handle_window_message(a_message: &mut WindowMessage, ctx: &egui::Context, ui: &mut egui::Ui) {
+    a_message.is_window_open = a_message.display_message(ctx);
+    a_message.open_window_on_click(ui, "Client Messages");
+}
 
-fn display_session_time_left(ui: &mut egui::Ui, time_left: &TimeTime) {
-    egui::Grid::new(4).show(ui, |ui| {
-        ui.label(format!("session time remaining: \n{:?}", time_left));
-    });
+fn display_session_time_left(
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    window_message: &mut WindowMessage,
+) {
+    window_message.is_window_open = window_message.display_message(ctx);
+    window_message.open_window_on_click(ui, "Session Time Left");
 }
 
 pub fn modal_machine(
@@ -104,8 +113,16 @@ impl eframe::App for BorkCraft {
             current_session_time(Arc::clone(&self.session_information), ctx.clone());
         });
         egui::CentralPanel::default().show(ctx, |ui| {
-            handle_errors(&mut self.error_message.lock().unwrap(), ctx, ui);
-            display_session_time_left(ui, &self.session_information.lock().unwrap().time);
+            ui.horizontal(|ui| {
+                handle_errors(&mut self.error_message.lock().unwrap(), ctx, ui);
+                handle_window_message(&mut self.window_message.lock().unwrap(), ctx, ui);
+                display_session_time_left(
+                    ui,
+                    ctx,
+                    &mut self.session_information.lock().unwrap().window_message,
+                );
+                ui.end_row();
+            });
             modal_machine(
                 &mut self.selected_modal_page,
                 ui,
@@ -117,8 +134,10 @@ impl eframe::App for BorkCraft {
                 "Login" => login(self, ui, LOGIN_FORM, LOGIN_URL, LOGOUT_URL),
                 "Nether Portals" => new_nether_portal(
                     &mut self.error_message,
+                    &mut self.window_message,
                     &mut self.all_nether_portal_information,
                     ui,
+                    ctx.clone(),
                 ), //nether_portal(self, ui, NETHER_PORTAL_KEYS_URL, MEMBER_IDS_URL),
                 _ => {
                     ui.label("Where would you like to go Borker...?");

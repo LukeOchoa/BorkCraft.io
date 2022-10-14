@@ -1,3 +1,4 @@
+use crate::borkcraft_app::WindowMessage;
 use eframe::egui;
 use serde_derive::{Deserialize, Serialize};
 use std::{
@@ -10,6 +11,7 @@ pub struct SessionInformation {
     pub key: String,
     pub time: TimeTime,
     pub is_logged_in: bool,
+    pub window_message: WindowMessage,
 }
 
 #[derive(Deserialize, Serialize, Debug, Default)]
@@ -43,21 +45,35 @@ pub fn current_session_time(
         let result = ureq::post("http://localhost:8123/sessiontimeleft").send_json(Key {
             key: session_information.lock().unwrap().key.clone(),
         });
-        match result {
-            Ok(response) => {
-                if response.status() == 202 {
-                    let a_time: TimeTime = response.into_json().unwrap();
-                    let one = "1".to_string();
-                    // if the session is expired; i.e. if all time is less than one second
-                    if a_time.hour < one && a_time.minute < one && a_time.second < one {
-                        session_information.lock().unwrap().is_logged_in = false
-                    }
-                    session_information.lock().unwrap().time = a_time;
-                    ctx.request_repaint();
+
+        let time = if let Ok(response) = result {
+            if response.status() == 202 {
+                let a_time: TimeTime = response.into_json().unwrap();
+                let one = "1".to_string();
+                // if the session is expired; i.e. if all time is less than one second
+                if a_time.hour < one && a_time.minute < one && a_time.second < one {
+                    session_information.lock().unwrap().is_logged_in = false
                 }
+
+                a_time
+            } else {
+                TimeTime::default()
             }
-            Err(_) => {}
-        }
+        } else {
+            TimeTime::default()
+        };
+
+        write_session(&mut session_information.lock().unwrap(), time);
+        ctx.request_repaint();
         thread::sleep(time::Duration::from_secs(3));
     });
+}
+
+fn write_session(session_information: &mut SessionInformation, time: TimeTime) {
+    // Create a message to be displayed
+    let message = Some(format!("session time remaining: \n{:?}", time));
+    // Give session_information the TimeTime object to be potentially used other places
+    session_information.time = time;
+    // Assign "message" to session information
+    session_information.window_message.message = message //WindowMessage::window_message(message);
 }

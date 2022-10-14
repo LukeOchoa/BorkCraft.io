@@ -1,7 +1,9 @@
 use crate::{
     borkcraft_app::{BorkCraft, SessionInformation, SessionTime},
     errors::client_errors::ErrorMessage,
-    to_vec8, ureq_did_request_go_through_f, ResponseResult,
+    to_vec8, ureq_did_request_go_through_f,
+    windows::client_windows::WindowMessage,
+    ResponseResult,
 };
 use eframe::egui;
 use serde_derive::Serialize;
@@ -175,6 +177,7 @@ fn login_response_to_session_information(response: Response) -> SessionInformati
         time: session_time.time,
         key: session_time.key,
         is_logged_in: true,
+        window_message: WindowMessage::default(),
     }
 }
 
