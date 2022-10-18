@@ -1,12 +1,14 @@
 use crate::{
     borkcraft_app::ErrorMessage, //{modal_machine, BorkCraft, ErrorMessage},
     borkcraft_app::WindowMessage,
-    eframe_tools::modal_machines::{self, act_on_tooth, ModalMachineGear},
-    images::image::{get_nether_portal_images, make_partial_gear, ImageAndDetails},
-    //ureq_did_request_go_through_f, ResponseResult,
+    eframe_tools::modal_machines::{self, _try_modal_machine, act_on_tooth},
+    images::image::{
+        display_nether_portal_images, get_nether_portal_images, make_partial_gear, ImageAndDetails,
+    },
     thread_tools::ThreadPool,
 };
 use eframe::egui;
+use image::error;
 use serde_derive::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -30,11 +32,24 @@ pub struct NewNetherPortalModal {
     pub modal_list: Vec<String>, //Vec<ModalListItem>
     pub image_modal: String,
 }
+
+// all_nether_portal_images needs a way to hold information that says
+// : "This HashMap has not been built out with its necessary information yet"
+// And
+// : "This HashMap is in the process of being built out, Please do not try to build it again"
+// Maybe use an Enum that is either: Hasher, Nothing, BeingBuilt
+pub enum StateOfImages {
+    HashMap(HashMap<String, ImageAndDetails>),
+    BeingBuilt,
+    Nothing,
+    BuildFailed,
+}
+
 #[derive(Default)]
 pub struct NewNetherPortalInformation {
     pub modal_information: NewNetherPortalModal,
     pub all_nether_portals: HashMap<String, NetherPortal>,
-    pub all_nether_portal_images: Arc<Mutex<HashMap<String, HashMap<String, ImageAndDetails>>>>,
+    pub all_nether_portal_images: Arc<Mutex<HashMap<String, StateOfImages>>>, //HashMap<String, ImageAndDetails>>>>,
     pub displayable_nether_portal: Option<(String, StringNetherPortal)>,
     pub copy_of_nether_portals: HashMap<String, NetherPortal>,
     pub modify: bool,
@@ -553,38 +568,37 @@ fn modal_machine_for_nether_portals(
             }
         }
 
-        if let Ok(access) = some_nether_portal_information
-            .all_nether_portal_images
-            .try_lock()
-        {
-            // TODO check if images exist for this true_name == some_option
-
-            if let None = access.get(some_option) {
-                let true_name = some_option.to_string();
-                let all_nether_portal_images_am =
-                    Arc::clone(&some_nether_portal_information.all_nether_portal_images);
-                let error_message_am = Arc::clone(error_message);
-                thread::spawn(move || {
-                    match get_nether_portal_images(&true_name) {
-                        Ok(hashy) => {
-                            all_nether_portal_images_am
-                                .lock()
-                                .unwrap()
-                                .insert(true_name.clone(), hashy);
-                        }
-                        Err(error_string) => {
-                            *error_message_am.lock().unwrap() =
-                                ErrorMessage::pure_error_message(Some(error_string));
-                        }
-                    };
-                });
-                //access.get()
-            }
-            //if let Some(hasher) = access.get(some_option) {
-            //    if some_nether_portal_information.
-            //    let gear = ModalMachineGear::Immutable(&make_partial_gear(hasher));
-            //}
-        }
+        //if let Ok(access) = some_nether_portal_information
+        //    .all_nether_portal_images
+        //    .try_lock()
+        //{
+        //    // TODO check if images exist for this true_name == some_option
+        //    if let None = access.get(some_option) {
+        //        let true_name = some_option.to_string();
+        //        let all_nether_portal_images_am =
+        //            Arc::clone(&some_nether_portal_information.all_nether_portal_images);
+        //        let error_message_am = Arc::clone(error_message);
+        //        thread::spawn(move || {
+        //            match get_nether_portal_images(&true_name) {
+        //                Ok(hashy) => {
+        //                    all_nether_portal_images_am
+        //                        .lock()
+        //                        .unwrap()
+        //                        .insert(true_name.clone(), StateOfImages::HashMap(hashy));
+        //                }
+        //                Err(error_string) => {
+        //                    *error_message_am.lock().unwrap() =
+        //                        ErrorMessage::pure_error_message(Some(error_string));
+        //                }
+        //            };
+        //        });
+        //        //access.get()
+        //    }
+        //    //if let Some(hasher) = access.get(some_option) {
+        //    //    if some_nether_portal_information.
+        //    //    let gear = ModalMachineGear::Immutable(&make_partial_gear(hasher));
+        //    //}
+        //}
 
         //if let Some(index) = some_nether_portal_information.all_nether_portal_images.
 
@@ -843,15 +857,93 @@ pub fn new_nether_portal(
                     modify: bool::default(),
                 });
             println!("how many calls");
-            crate::images::image::get_nether_portal_images(&"World Spawn".to_string())
+
+            //if let Err(errorx) = crate::images::image::get_nether_portal_images(&"World Spawn".to_string()) {
+            //    *error_message_am_clone.lock().unwrap() = ErrorMessage::pure_error_message(Some(errorx));
+            //}
         });
     });
+
+    fn nether_portal_image_handler(
+        all_nether_portal_images: Arc<Mutex<HashMap<String, StateOfImages>>>,
+        image_modal: &mut String,
+        modal: &mut String,
+        ui: &mut egui::Ui,
+        error_message: &mut Arc<Mutex<ErrorMessage>>,
+    ) {
+        if let Ok(mut access) = all_nether_portal_images.try_lock() {
+            if let Some(image_list) = access.get(modal) {
+                match image_list {
+                    StateOfImages::Nothing => {
+                        println!("nothing");
+                        //access.insert(modal.clone(), StateOfImages::BeingBuilt);
+
+                        let anpi_am_clone = Arc::clone(&all_nether_portal_images);
+                        let error_message_am_clone = Arc::clone(&error_message);
+                        let some_modal = modal.clone();
+                        thread::spawn(move || {
+                            insert_state_of_images(
+                                &anpi_am_clone,
+                                some_modal.clone(),
+                                StateOfImages::BeingBuilt,
+                            );
+
+                            let state_of_images =
+                                match crate::images::image::get_nether_portal_images(&some_modal) {
+                                    Ok(image_collection) => {
+                                        //access.insert(
+                                        //    modal.clone(),
+                                        //    StateOfImages::HashMap(image_collection),
+                                        //);
+                                        StateOfImages::HashMap(image_collection)
+                                    }
+                                    Err(error_string) => {
+                                        //insert_state_of_images(
+                                        //    &anpi_am_clone,
+                                        //    modal.clone(),
+                                        //    StateOfImages::BuildFailed,
+                                        //);
+                                        println!("error 1");
+                                        *error_message_am_clone.lock().unwrap() =
+                                            ErrorMessage::pure_error_message(Some(error_string));
+                                        StateOfImages::BuildFailed
+                                    }
+                                };
+
+                            insert_state_of_images(&anpi_am_clone, some_modal, state_of_images);
+                        });
+                    }
+                    StateOfImages::HashMap(hasher) => {
+                        println!("hasher");
+                        let image_gear = &make_partial_gear(&hasher);
+                        display_nether_portal_images(
+                            hasher,
+                            image_modal,
+                            image_gear,
+                            ui,
+                            &mut error_message.lock().unwrap(),
+                        );
+                    }
+                    _ => {}
+                }
+            } else {
+                if *modal != String::default() {
+                    let anpi_am_clone = Arc::clone(&all_nether_portal_images);
+                    let some_modal = modal.clone();
+                    thread::spawn(move || {
+                        insert_state_of_images(&anpi_am_clone, some_modal, StateOfImages::Nothing);
+                    });
+                }
+            }
+        }
+    }
 
     // use try_nether_portal_information to gain access to its value
     NewNetherPortalInformation::try_nether_portal_information(
         all_nether_portal_information,
         ui,
         |some_nether_portal_information, ui| {
+            //let access_am_clone = Arc::clone(&all_nether_portal_information.lock().unwrap().as_ref().unwrap().all_nether_portal_images);
             ui.horizontal(|ui| {
                 // create a modal machine with its information
                 modal_machine_for_nether_portals(some_nether_portal_information, ui, error_message);
@@ -886,27 +978,161 @@ pub fn new_nether_portal(
             displayable_nether_portal(ui, error_message, some_nether_portal_information);
 
             // if you can access client images
-            if let Ok(access) = some_nether_portal_information
-                .all_nether_portal_images
-                .try_lock()
-            {
-                // if the current image modal has images
-                if let Some(image_list) =
-                    access.get(&some_nether_portal_information.modal_information.image_modal)
-                {
-                    println!(
-                        "==============================================we found an image list?"
-                    );
-                    let image_gear = &crate::images::image::make_partial_gear(&image_list);
-                    crate::images::image::display_nether_portal_images(
-                        image_list,
-                        &mut some_nether_portal_information.modal_information.image_modal,
-                        image_gear,
-                        ui,
-                        &mut error_message.lock().unwrap(),
-                    );
-                }
-            }
+            nether_portal_image_handler(
+                Arc::clone(&some_nether_portal_information.all_nether_portal_images),
+                &mut some_nether_portal_information.modal_information.image_modal,
+                &mut some_nether_portal_information.modal_information.modal,
+                ui,
+                error_message,
+            );
+            //if let Ok(mut access) = some_nether_portal_information
+            //.all_nether_portal_images
+            //.try_lock()
+            //{
+            //// if the current image modal has images
+            //if let Some(image_list) =
+            //access.get(&some_nether_portal_information.modal_information.modal)
+            //{
+            //match image_list {
+            //StateOfImages::BuildFailed => {}
+            //StateOfImages::Nothing => {
+            //println!("STATE OF IMAGES: NOTHING");
+            //let error_message_am_clone = Arc::clone(error_message);
+            //let access_am_clone = Arc::clone(
+            //&some_nether_portal_information.all_nether_portal_images,
+            //);
+            //let some_modal = some_nether_portal_information
+            //.modal_information
+            //.modal
+            //.clone();
+
+            //thread::spawn(move || {
+            //loop {
+            //if let Ok(mut access_x) = access_am_clone.try_lock() {
+            //access_x
+            //.insert(some_modal.clone(), StateOfImages::BeingBuilt);
+            //break;
+            //}
+            //}
+            //let result =
+            //crate::images::image::get_nether_portal_images(&some_modal);
+            //match result {
+            //Ok(hasher) => {
+            //loop {
+            //for (_k, v) in &hasher {
+            //println!("{:?}", v.image_details);
+            //}
+            //println!("loop3\n\n\n");
+            //if let Ok(mut access_x) = access_am_clone.try_lock() {
+            //access_x.insert(
+            //some_modal,
+            //StateOfImages::HashMap(hasher),
+            //);
+            //break;
+            //}
+            //}
+            ////access_am_clone
+            ////    .lock()
+            ////    .unwrap()
+            ////    .insert(some_modal, StateOfImages::HashMap(hasher));
+            ////}
+            //}
+            //Err(error_string) => {
+            //println!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+            //*error_message_am_clone.lock().unwrap() =
+            //ErrorMessage::pure_error_message(Some(
+            //error_string.clone(),
+            //));
+            //panic!("{}", error_string);
+            //}
+            //}
+            //println!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            //});
+            //}
+            //StateOfImages::BeingBuilt => {
+            ////println!("STATE OF IMAGES: BEING BUILT!");
+            //}
+            //StateOfImages::HashMap(hasher) => {
+            //println!("STATE OF IMAGES: HASHMAP HERE!");
+            //let image_gear = &crate::images::image::make_partial_gear(&hasher);
+            //crate::images::image::display_nether_portal_images(
+            //hasher,
+            //&mut some_nether_portal_information.modal_information.image_modal,
+            //image_gear,
+            //ui,
+            //&mut error_message.lock().unwrap(),
+            //);
+            //}
+            //}
+            //} //else {
+            //println!("else");
+            //let some_modal = some_nether_portal_information
+            //.modal_information
+            //.modal
+            //.clone();
+            //if some_modal != String::default() {
+            ////let error_message_am_clone = Arc::clone(error_message);
+            //let access_am_clone =
+            //Arc::clone(&some_nether_portal_information.all_nether_portal_images);
+            //thread::spawn(move || loop {
+            //if let Ok(mut access_x) = access_am_clone.try_lock() {
+            //access_x.insert(some_modal, StateOfImages::Nothing);
+            //break;
+            //}
+            //});
+            //}
+            //}
+            // } else {
+            //     let some_modal = some_nether_portal_information
+            //         .modal_information
+            //         .modal
+            //         .clone();
+            //     if some_modal != String::default() {
+            //         let error_message_am_clone = Arc::clone(error_message);
+            //         let access_am_clone =
+            //             Arc::clone(&some_nether_portal_information.all_nether_portal_images);
+
+            //         thread::spawn(move || {
+            //             loop {
+            //                 println!("loop2");
+            //                 if let Ok(mut access_x) = access_am_clone.try_lock() {
+            //                     //access_x.insert(
+            //                     //    some_modal,
+            //                     //    StateOfImages::HashMap(hasher),
+            //                     //);
+            //                     access_x.insert(some_modal.clone(), StateOfImages::BeingBuilt);
+            //                     break;
+            //                 }
+            //             }
+            //             //access_am_clone
+            //             //    .lock()
+            //             //    .unwrap()
+            //             //    .insert(some_modal.clone(), StateOfImages::BeingBuilt);
+            //             println!("YEYEYEYEYEYEYEYEYEYEYEYEYEYEYEYEYEYEYE");
+            //             match crate::images::image::get_nether_portal_images(&some_modal) {
+            //                 Ok(hasher) => loop {
+            //                     println!("loop1");
+            //                     if let Ok(mut access_x) = access_am_clone.try_lock() {
+            //                         access_x.insert(
+            //                             some_modal.clone(),
+            //                             StateOfImages::HashMap(hasher),
+            //                         );
+            //                         break;
+            //                     }
+            //                 },
+            //                 Err(error_string) => {
+            //                     *error_message_am_clone.lock().unwrap() =
+            //                         ErrorMessage::pure_error_message(Some(
+            //                             error_string.clone(),
+            //                         ));
+            //                     panic!("{}", error_string);
+            //                 }
+            //             }
+            //         });
+            //     }
+            // }
+            //else {
+            //};
         },
     );
 }
@@ -1146,3 +1372,16 @@ pub fn new_nether_portal(
 //
 //    Ok(some_count.count.parse().unwrap())
 //}
+fn insert_state_of_images(
+    try_access: &Arc<Mutex<HashMap<String, StateOfImages>>>,
+    key: String,
+    state_of_images: StateOfImages,
+) {
+    //! Try gain lock from Type Arc<Mutex<HashMap<String, StateOfImages>>>
+    loop {
+        if let Ok(mut access) = try_access.try_lock() {
+            access.insert(key, state_of_images);
+            break;
+        }
+    }
+}

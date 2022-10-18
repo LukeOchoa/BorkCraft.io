@@ -18,21 +18,21 @@ pub struct NetherPortalImages {
     all_netherportal_images: Arc<Mutex<HashMap<String, HashMap<String, ImageAndDetails>>>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct ImageDetails {
     #[serde(rename = "Id")]
-    id: i32,
+    pub id: i32,
     #[serde(rename = "Name")]
-    name: String,
+    pub name: String,
     #[serde(rename = "True_name")]
-    true_name: String,
+    pub true_name: String,
     #[serde(rename = "Username")]
-    username: String,
+    pub username: String,
 }
 // Big Boi Data is: HashMap<String, ImageAndDetails>
 pub struct ImageAndDetails {
-    image: RetainedImage,
-    image_details: ImageDetails,
+    pub image: RetainedImage,
+    pub image_details: ImageDetails,
 }
 
 fn response_to_retained_image(response: ureq::Response) -> Result<RetainedImage, String> {
@@ -136,6 +136,7 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
     let mut image_collection: ImageCollection = HashMap::new();
     let mut subfn = || -> Result<(), String> {
         let image_and_details = receiver.recv().or_else(|error| Err(error.to_string()))??;
+        println!("revc!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11");
         image_collection.insert(
             image_and_details.image_details.name.clone(),
             image_and_details,
@@ -143,9 +144,11 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
         Ok(())
     };
     for _ in 0..length {
-        subfn()?;
+        if let Err(error) = subfn() {
+            panic!("98798797987987\n\nh{}", error.to_string());
+        }
     }
-
+    println!("RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR");
     Ok(image_collection)
 }
 
@@ -170,21 +173,18 @@ pub fn display_nether_portal_images(
     ui: &mut eframe::egui::Ui,
     error_message: &mut ErrorMessage,
 ) {
-    let tooth = modal_machines::modal_machine(
+    // create modal for image choice
+    modal_machines::modal_machine(
         image_modal,
         ui,
         ModalMachineGear::Immutable(&image_gear),
         Some("Images"),
         11,
     );
-    act_on_tooth(tooth, |some_option| {
-        let retained_image = &image_list.get(some_option).unwrap().image;
-        display_retained_image(&retained_image, ui)
-    });
-}
 
-// get a list of images that is: HashMap<String, ImageAndDetails>
-// create a modal with the names of the image
-// on choice display an image
-// make a function that takes an Image to display
-// make a set of buttons that will let u scroll through the images
+    // get image if it exists with the chosen modal from app state
+    if let Some(image_and_details) = image_list.get(image_modal) {
+        let retained_image = &image_and_details.image;
+        display_retained_image(&retained_image, ui)
+    }
+}
