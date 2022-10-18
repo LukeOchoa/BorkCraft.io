@@ -1,22 +1,14 @@
-use eframe::egui::Ui;
 use egui_extras::RetainedImage;
 use serde_derive::Deserialize;
 use std::{
     collections::HashMap,
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Arc, Mutex,
-    },
+    sync::mpsc::{self, Receiver, Sender},
 };
 
 use crate::{
-    borkcraft_app::{modal_machine, ErrorMessage},
-    eframe_tools::modal_machines::{self, act_on_tooth, ModalMachineGear},
+    eframe_tools::modal_machines::{self, ModalMachineGear},
     thread_tools::ThreadPool,
 };
-pub struct NetherPortalImages {
-    all_netherportal_images: Arc<Mutex<HashMap<String, HashMap<String, ImageAndDetails>>>>,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct ImageDetails {
@@ -59,7 +51,7 @@ fn fetch_image_response(name: &String) -> Result<ureq::Response, String> {
     }
 }
 
-fn get_images_from_server(
+fn _get_images_from_server(
     image_details_hm: HashMap<String, ImageDetails>,
 ) -> Result<HashMap<String, ImageAndDetails>, String> {
     let mut hashy: HashMap<String, ImageAndDetails> = HashMap::new();
@@ -171,7 +163,6 @@ pub fn display_nether_portal_images(
     image_modal: &mut String,
     image_gear: &Vec<String>,
     ui: &mut eframe::egui::Ui,
-    error_message: &mut ErrorMessage,
 ) {
     // create modal for image choice
     modal_machines::modal_machine(
