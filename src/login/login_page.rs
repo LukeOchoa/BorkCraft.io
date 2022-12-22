@@ -98,28 +98,6 @@ pub fn login(
                     }
                     Err(error) => *the_self.error_message.lock().unwrap() = error,
                 }
-                // match did_request_go_through {
-                //     Ok(response) => match response.status() {
-                //         202 => {
-                //             // Write the response data to state
-                //             *the_self.session_information.lock().unwrap() =
-                //                 login_response_to_session_information(response);
-                //             the_self.login_form.session_key =
-                //                 the_self.session_information.lock().unwrap().key.clone();
-                //         }
-                //         _ => {
-                //             let error_string = handle_response_failure(response.status_text());
-                //             *the_self.error_message.lock().unwrap() =
-                //                 ErrorMessage::pure_error_message(error_string);
-                //         }
-                //     },
-                //     Err(error) => {
-                //         let error_string = err_to_string(error);
-                //         let error_string = handle_response_failure(&error_string);
-                //         *the_self.error_message.lock().unwrap() =
-                //             ErrorMessage::pure_error_message(error_string);
-                //     }
-                // }
             }
         } else {
             ui.label("Your already logged in!");
@@ -155,15 +133,6 @@ pub fn did_logout_succeed(did_request_go_through: Result<Response, Error>) -> Op
         }
     }
 }
-
-// fn err_to_string(error: Error) -> String {
-//     if let Error::Status(u16boi, _) = error {
-//         return u16boi.to_string();
-//     } else {
-//         //panic!("Magical Faries have occured...!")
-//         return "Could not connect to server...?!".to_string();
-//     }
-// }
 
 fn submit_bytes_to_url(body: Vec<u8>, url: &String) -> Result<Response, Error> {
     let result = ureq::post(url).send_bytes(&body);

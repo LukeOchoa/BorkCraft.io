@@ -107,12 +107,6 @@ fn get_mut_ref_by_field<'a>(
     Err("Field does not exist".to_string())
 }
 
-// #[derive(Debug, Default)]
-// pub struct NetherPortalInformation {
-//     whitelist: MemberIds,
-//     nether_portals: HashMap<String, NetherPortal>,
-// }
-
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct NetherPortal {
     #[serde(rename = "Id")]
@@ -123,8 +117,6 @@ pub struct NetherPortal {
     nether: Portal,
     #[serde(rename = "Username")]
     username: String,
-    //#[serde(skip)]
-    //modified: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -260,12 +252,6 @@ pub struct StringPortal {
     true_name: String,
 }
 
-// impl NetherPortalInformation {
-//     pub fn default() -> Self {
-//         let instance: Self = Default::default();
-//         instance
-//     }
-// }
 #[derive(Debug)]
 pub enum PortalValue<'a> {
     Text(&'a String),
@@ -565,40 +551,6 @@ fn modal_machine_for_nether_portals(
             }
         }
 
-        //if let Ok(access) = some_nether_portal_information
-        //    .all_nether_portal_images
-        //    .try_lock()
-        //{
-        //    // TODO check if images exist for this true_name == some_option
-        //    if let None = access.get(some_option) {
-        //        let true_name = some_option.to_string();
-        //        let all_nether_portal_images_am =
-        //            Arc::clone(&some_nether_portal_information.all_nether_portal_images);
-        //        let error_message_am = Arc::clone(error_message);
-        //        thread::spawn(move || {
-        //            match get_nether_portal_images(&true_name) {
-        //                Ok(hashy) => {
-        //                    all_nether_portal_images_am
-        //                        .lock()
-        //                        .unwrap()
-        //                        .insert(true_name.clone(), StateOfImages::HashMap(hashy));
-        //                }
-        //                Err(error_string) => {
-        //                    *error_message_am.lock().unwrap() =
-        //                        ErrorMessage::pure_error_message(Some(error_string));
-        //                }
-        //            };
-        //        });
-        //        //access.get()
-        //    }
-        //    //if let Some(hasher) = access.get(some_option) {
-        //    //    if some_nether_portal_information.
-        //    //    let gear = ModalMachineGear::Immutable(&make_partial_gear(hasher));
-        //    //}
-        //}
-
-        //if let Some(index) = some_nether_portal_information.all_nether_portal_images.
-
         // TODO somehow create a thread that watches for external changes from other potenial clients that write info to the
         // database. Then update the client in a user friendly way... more magic...
     });
@@ -666,9 +618,34 @@ fn displayable_nether_portal<'a>(
     };
 }
 
+fn save_modified_data(
+    all_nether_portals: &mut HashMap<String, NetherPortal>,
+    displayable_nether_portal: &mut Option<(String, StringNetherPortal)>,
+    current_netherportal_modal: &String,
+) -> Option<String> {
+    for (_key, netherportal) in all_nether_portals {
+        if &netherportal.nether.true_name == current_netherportal_modal
+            || &netherportal.overworld.true_name == current_netherportal_modal
+        {
+            if let Some(some_tuple) = displayable_nether_portal {
+                match NetherPortal::convert(some_tuple.1.clone()) {
+                    Ok(converted_netherportal) => {
+                        *netherportal = converted_netherportal;
+                        println!("SUCCESSFULL CONVERSION");
+                    }
+                    Err(error_string) => {
+                        return Some(error_string);
+                    }
+                }
+            }
+        }
+    }
+    return None;
+}
+
 fn modify_button(
     modify: &mut bool,
-    all_nether_portals: &HashMap<String, NetherPortal>,
+    all_nether_portals: &mut HashMap<String, NetherPortal>,
     displayable_nether_portal: &mut Option<(String, StringNetherPortal)>,
     current_netherportal_modal: &String,
     ui: &mut egui::Ui,
@@ -679,17 +656,33 @@ fn modify_button(
             .button(format!("Modify NetherPortal: {}", modify))
             .clicked()
         {
-            *modify = !*modify;
-        }
-        if !*modify {
-            // TODO: create a different version of this function so that it pulls from a StringNetherPortal and not the currently saved HashMap<String, NetherPortal>
-            match make_displayable_netherportal(all_nether_portals, &current_netherportal_modal) {
-                Ok(netherportal_tuple) => *displayable_nether_portal = Some(netherportal_tuple),
-                Err(error_string) => {
+            //
+
+            println!("give me my fried chimken ZEUS!");
+
+            if !*modify {
+                // TODO: create a different version of this function so that it pulls from a StringNetherPortal and not the currently saved HashMap<String, NetherPortal>
+                match make_displayable_netherportal(all_nether_portals, &current_netherportal_modal)
+                {
+                    Ok(netherportal_tuple) => *displayable_nether_portal = Some(netherportal_tuple),
+                    Err(error_string) => {
+                        *error_message.lock().unwrap() =
+                            ErrorMessage::pure_error_message(Some(error_string))
+                    }
+                }
+            } else {
+                println!("NETHER PORTAL NAME?: {}", current_netherportal_modal);
+                if let Some(error_string) = save_modified_data(
+                    all_nether_portals,
+                    displayable_nether_portal,
+                    current_netherportal_modal,
+                ) {
                     *error_message.lock().unwrap() =
                         ErrorMessage::pure_error_message(Some(error_string))
                 }
             }
+
+            *modify = !*modify;
         }
     }
 }
@@ -935,7 +928,7 @@ pub fn new_nether_portal(
                 // allow user to modify the current chosen netherportal being displayed
                 modify_button(
                     &mut some_nether_portal_information.modify,
-                    &some_nether_portal_information.all_nether_portals,
+                    &mut some_nether_portal_information.all_nether_portals,
                     &mut some_nether_portal_information.displayable_nether_portal,
                     &some_nether_portal_information.modal_information.modal,
                     ui,
@@ -960,252 +953,18 @@ pub fn new_nether_portal(
                 );
                 ui.end_row();
             });
-            displayable_nether_portal(ui, error_message, some_nether_portal_information);
+            ui.horizontal(|ui| {
+                displayable_nether_portal(ui, error_message, some_nether_portal_information);
 
-            // if you can access client images
-            nether_portal_image_handler(
-                Arc::clone(&some_nether_portal_information.all_nether_portal_images),
-                &mut some_nether_portal_information.modal_information.image_modal,
-                &mut some_nether_portal_information.modal_information.modal,
-                ui,
-                error_message,
-            );
+                // if you can access client images
+                nether_portal_image_handler(
+                    Arc::clone(&some_nether_portal_information.all_nether_portal_images),
+                    &mut some_nether_portal_information.modal_information.image_modal,
+                    &mut some_nether_portal_information.modal_information.modal,
+                    ui,
+                    error_message,
+                );
+            });
         },
     );
 }
-
-// pub fn nether_portal(
-//     borkcraft_self: &mut BorkCraft,
-//     ui: &mut egui::Ui,
-//     nether_portals_keys_url: &'static str,
-//     member_ids_url: &'static str,
-// ) {
-//     START.call_once(|| {
-//         let nether_portals_am_clone = Arc::clone(&borkcraft_self.nether_portals);
-//         let error_message_am_clone = Arc::clone(&borkcraft_self.error_message);
-//         let modal_list_am_clone = Arc::clone(&borkcraft_self.modal_nether_portal.modal_list);
-//         thread::spawn(move || {
-//             // get nether portal keys from server
-//             // then match out the result and transfer ownership to App state
-//             let did_request_go_through = ureq::get(nether_portals_keys_url).call();
-//             let result = match_out_nether_portal_keys_to_result_string(did_request_go_through);
-//             match result {
-//                 Ok(string) => {
-//                     let memberids_or_error_message = json_string_to_member_ids(string);
-//                     match memberids_or_error_message {
-//                         Ok(member_ids) => {
-//                             nether_portals_am_clone.lock().unwrap().whitelist = member_ids
-//                         }
-//                         Err(error) => {
-//                             *error_message_am_clone.lock().unwrap() = error;
-//                         }
-//                     }
-//                 }
-//                 Err(error) => {
-//                     *error_message_am_clone.lock().unwrap() = error;
-//                 }
-//             }
-
-//             // create a useable list of member ids to somehow prevent deadlocks by using two locks on App state arc mutex...
-//             let mut member_ids = Vec::new();
-//             for member_id in &nether_portals_am_clone.lock().unwrap().whitelist.member_ids {
-//                 member_ids.push(member_id.id.clone());
-//             }
-//             let mut something: Option<String> = None;
-//             if let None = &*modal_list_am_clone.lock().unwrap() {
-//                 something = None;
-//             } else {
-//                 something = Some("string".to_string());
-//             }
-//             match something {
-//                 Some(_) => {}
-//                 None => {
-//                     *modal_list_am_clone.lock().unwrap() = Some(member_ids.clone());
-//                 }
-//             }
-//             // get the nether portal associated with each id in member_ids list
-//             // then assign its value to App State
-//             for id in member_ids {
-//                 let did_request_go_through = nether_portal_get_request(member_ids_url, id.clone());
-//                 let result = request_to_nether_portal(did_request_go_through);
-//                 match result {
-//                     Ok(response_result) => {
-//                         if let ResponseResult::NetherPortal(nether_portal) = response_result {
-//                             nether_portals_am_clone
-//                                 .lock()
-//                                 .unwrap()
-//                                 .nether_portals
-//                                 .insert(id, nether_portal);
-//                         } else {
-//                             panic!("Magical Faries have occured at line 139 in nether_portals.rs");
-//                         }
-//                     }
-//                     Err(error) => {
-//                         *error_message_am_clone.lock().unwrap() = error;
-//                     }
-//                 }
-//             }
-//             println!(
-//                 "{:?}",
-//                 nether_portals_am_clone.lock().unwrap().nether_portals //borkcraft_self.nether_portals.lock().unwrap().nether_portals
-//             );
-
-//             let mut member_ids = Vec::new();
-//             let somethingref = &nether_portals_am_clone.lock().unwrap().nether_portals;
-//             for (_key, value) in somethingref {
-//                 member_ids.push(value.overworld.locale.clone())
-//             }
-//             *modal_list_am_clone.lock().unwrap() = Some(member_ids);
-//         });
-//     });
-
-//     ui.label("you selected nether portals...!");
-//     match borkcraft_self.modal_nether_portal.modal_list.try_lock() {
-//         Ok(some_result) => {
-//             if let Some(result) = &*some_result {
-//                 modal_machine(
-//                     &mut borkcraft_self.modal_nether_portal.modal,
-//                     ui,
-//                     &result,
-//                     8,
-//                 );
-//             }
-//         }
-//         Err(_) => {
-//             ui.spinner();
-//         }
-//     }
-
-//     if borkcraft_self.modal_nether_portal.modal != "" {
-//         ui.push_id(6, |ui| {
-//             egui::Resize::default()
-//                 .default_height(100.0)
-//                 .show(ui, |ui| {
-//                     for (_key, value) in
-//                         &borkcraft_self.nether_portals.lock().unwrap().nether_portals
-//                     {
-//                         let portal_value_names = vec![
-//                             "xcord",
-//                             "ycord",
-//                             "zcord",
-//                             "locale",
-//                             "owner",
-//                             "notes",
-//                             "true_name",
-//                         ];
-//                         for item in &portal_value_names {
-//                             let some_value: String;
-//                             match value.overworld.get(item) {
-//                                 Ok(portal_value) => {
-//                                     some_value = portal_value.to_string();
-//                                 } //match portal_value {
-//                                 // PortalValue::Number(number) => {
-//                                 //     some_value = number.to_string();
-//                                 // }
-//                                 // PortalValue::Text(text) => some_value = text.to_string(),
-//                                 // PortalValue::MutText(mut_text) => some_value = mut_text.to_string()
-
-//                                 //},,
-//                                 Err(error) => {
-//                                     panic!("Magus Faries @ line 309: ... {}", error);
-//                                 }
-//                             }
-//                             ui.horizontal_wrapped(|ui| {
-//                                 ui.label(item.to_string());
-//                                 ui.label("=>");
-//                                 ui.label(some_value);
-//                                 ui.end_row();
-//                             });
-//                         }
-//                     }
-//                 })
-//         });
-//     }
-// }
-
-//fn match_out_nether_portal_keys_to_result_string(
-//    did_request_go_through: Result<ureq::Response, ureq::Error>,
-//) -> Result<String, ErrorMessage> {
-//    let result = ureq_did_request_go_through_f(
-//        did_request_go_through,
-//        Box::new(
-//            |response: ureq::Response| -> Result<ResponseResult, String> {
-//                match response.into_string() {
-//                    Ok(string) => return Ok(ResponseResult::Text(string)),
-//                    Err(error) => return Err(error.to_string()),
-//                }
-//            },
-//        ),
-//    );
-//    match result {
-//        Ok(response_result) => {
-//            //let mut some_string = String::new();
-//            if let ResponseResult::Text(string) = response_result {
-//                //some_string = string;
-//                return Ok(string);
-//            } else {
-//                panic!("Magical faires occured at line 82 in nether_portals.rs");
-//            }
-//            //return some_string;
-//        }
-//        Err(error) => return Err(error),
-//    }
-//}
-//
-//fn json_string_to_member_ids(json_string: String) -> Result<MemberIds, ErrorMessage> {
-//    match serde_json::from_str::<MemberIds>(&json_string) {
-//        Ok(type_member_ids) => return Ok(type_member_ids),
-//        Err(error) => Err(ErrorMessage::pure_error_message(Some(error.to_string()))),
-//    }
-//}
-//
-//fn request_to_nether_portal(
-//    did_request_go_through: Result<ureq::Response, ureq::Error>,
-//) -> Result<ResponseResult, ErrorMessage> {
-//    let result = ureq_did_request_go_through_f(
-//        did_request_go_through,
-//        Box::new(|response: ureq::Response| {
-//            let json_string = response.into_string();
-//            match json_string {
-//                Ok(string) => match serde_json::from_str(&string) {
-//                    Ok(some_nether_portal) => {
-//                        return Ok(ResponseResult::NetherPortal(some_nether_portal));
-//                    }
-//                    Err(error) => return Err(error.to_string()),
-//                },
-//                Err(error) => return Err(error.to_string()),
-//            }
-//        }),
-//    );
-//
-//    result
-//}
-//
-//fn nether_portal_get_request(url: &str, member_id: String) -> Result<ureq::Response, ureq::Error> {
-//    println!("the requested id!!!!!!!!!!!!!!!!11111 |{}|", member_id);
-//    let did_request_go_through = ureq::get(&format!("{}{}", url, &member_id)).call();
-//
-//    did_request_go_through
-//}
-//fn get_count_of_nether_portals() -> Result<i32, String> {
-//    #[derive(Deserialize)]
-//    struct Count {
-//        count: String,
-//    }
-//    let result = ureq::get("http://localhost:8123/netherportalcount").call();
-//    let response = match result {
-//        Ok(response) => response,
-//        Err(error) => return Err(error.to_string()),
-//    };
-//    let json_string = match response.into_string() {
-//        Ok(some_string) => some_string,
-//        Err(_) => return Err("failed to convert response to string @ line 187".to_string()),
-//    };
-//
-//    let some_count: Count = match serde_json::from_str(&json_string) {
-//        Ok(some_count) => some_count,
-//        Err(error) => return Err(error.to_string()),
-//    };
-//
-//    Ok(some_count.count.parse().unwrap())
-//}

@@ -16,13 +16,10 @@ use std::{
 };
 
 const LOGIN_FORM: &'static [&'static str] = &["username", "password"];
-//const PAGE_OPTIONS: &'static [&'static str] = &["Login", "Nether Portals"];
 static START: Once = Once::new();
 
 const LOGOUT_URL: &'static str = "http://localhost:8123/nativelogout";
 const LOGIN_URL: &'static str = "http://localhost:8123/nativelogin2";
-//const NETHER_PORTAL_KEYS_URL: &'static str = "http://localhost:8123/somelist";
-//const MEMBER_IDS_URL: &'static str = "http://localhost:8123/sendmember?id=";
 
 #[derive(Default)]
 pub struct ImageCache {
@@ -132,13 +129,20 @@ impl eframe::App for BorkCraft {
 
             match self.selected_modal_page.as_str() {
                 "Login" => login(self, ui, LOGIN_FORM, LOGIN_URL, LOGOUT_URL),
-                "Nether Portals" => new_nether_portal(
-                    &mut self.error_message,
-                    &mut self.window_message,
-                    &mut self.all_nether_portal_information,
-                    ui,
-                    ctx.clone(),
-                ), //nether_portal(self, ui, NETHER_PORTAL_KEYS_URL, MEMBER_IDS_URL),
+                "Nether Portals" => {
+                    //let time = self.session_information.lock().unwrap().time.second.clone();
+                    if self.session_information.lock().unwrap().is_logged_in {
+                        new_nether_portal(
+                            &mut self.error_message,
+                            &mut self.window_message,
+                            &mut self.all_nether_portal_information,
+                            ui,
+                            ctx.clone(),
+                        )
+                    } else {
+                        ui.label("Please Log-in to see this information...");
+                    }
+                } //nether_portal(self, ui, NETHER_PORTAL_KEYS_URL, MEMBER_IDS_URL),
                 _ => {
                     ui.label("Where would you like to go Borker...?");
                 }
@@ -146,21 +150,3 @@ impl eframe::App for BorkCraft {
         });
     }
 }
-
-// fn _some_function(ui: &mut egui::Ui, _ctx: &egui::Context) {
-//     //egui::ScrollArea::vertical().show(ui, |ui| {
-//     //.drag_bounds(egui::Rect {
-//     //    min: egui::pos2(30.0, 30.0),
-//     //    max: egui::pos2(300.0, 300.0),
-//     //})
-//     egui::Resize::default()
-//         .default_height(100.0)
-//         .show(ui, |ui| {
-//             ui.horizontal_wrapped(|ui| {
-//                 for i in 0..100 {
-//                     ui.label(i.to_string());
-//                 }
-//             });
-//         });
-//     //});
-// }
