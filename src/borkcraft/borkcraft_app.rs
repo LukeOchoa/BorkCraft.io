@@ -20,6 +20,8 @@ static START: Once = Once::new();
 
 const LOGOUT_URL: &'static str = "http://localhost:8123/nativelogout";
 const LOGIN_URL: &'static str = "http://localhost:8123/nativelogin2";
+const SAVE_IMAGE_DETAILS_URL: &'static str = "http://localhost:8123/saveimagefromclient";
+const SAVE_IMAGE_URL: &'static str = "http://localhost:1234/saveimage";
 
 #[derive(Default)]
 pub struct ImageCache {
@@ -40,6 +42,7 @@ impl ImageCache {
 }
 
 pub struct BorkCraft {
+    pub user_picked_filepath: Option<String>,
     pub image_cache: Arc<Mutex<ImageCache>>,
     pub login_form: LoginForm,
     pub error_message: Arc<Mutex<ErrorMessage>>,
@@ -65,6 +68,7 @@ impl Default for BorkCraft {
             },
             //nether_portals: Arc::new(Mutex::new(NetherPortalInformation::default())),
             all_nether_portal_information: Arc::new(Mutex::new(None)),
+            user_picked_filepath: None,
         }
     }
 }
@@ -136,6 +140,11 @@ impl eframe::App for BorkCraft {
                             &mut self.error_message,
                             &mut self.window_message,
                             &mut self.all_nether_portal_information,
+                            &self.session_information,
+                            &mut self.user_picked_filepath,
+                            &self.login_form.username,
+                            SAVE_IMAGE_URL,
+                            SAVE_IMAGE_DETAILS_URL,
                             ui,
                             ctx.clone(),
                         )

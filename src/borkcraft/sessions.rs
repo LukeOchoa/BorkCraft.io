@@ -11,6 +11,7 @@ pub struct SessionInformation {
     pub key: String,
     pub time: TimeTime,
     pub is_logged_in: bool,
+    pub access_rights: Vec<String>,
     pub window_message: WindowMessage,
 }
 

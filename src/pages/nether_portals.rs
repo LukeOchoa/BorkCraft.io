@@ -1,10 +1,19 @@
 use crate::{
     borkcraft_app::ErrorMessage, //{modal_machine, BorkCraft, ErrorMessage},
     borkcraft_app::WindowMessage,
+    eframe_tools::egui_tools::{get_file_name, path_of_image_to_vec_u8},
     eframe_tools::modal_machines::{self, act_on_tooth},
-    images::image::{display_nether_portal_images, make_partial_gear, ImageAndDetails},
+    images::image::{
+        display_nether_portal_images, make_partial_gear, ImageAndDetails, ImageCollection,
+        ImageDetails,
+    },
+    local_files::add_files,
+    sessions::SessionInformation,
     thread_tools::ThreadPool,
+    to_vec8,
+    windows::client_windows::{DeletionQueue, GenericWindow, Victim},
 };
+
 use eframe::egui;
 use serde_derive::{Deserialize, Serialize};
 use std::{
@@ -28,6 +37,7 @@ pub struct NewNetherPortalModal {
     pub previous_modal: String,
     pub modal_list: Vec<String>, //Vec<ModalListItem>
     pub image_modal: String,
+    pub deletion_modal: String,
 }
 
 // all_nether_portal_images needs a way to hold information that says
@@ -41,6 +51,22 @@ pub enum StateOfImages {
     Nothing,
     BuildFailed,
 }
+impl StateOfImages {
+    pub fn hashmap_mut(&mut self) -> Option<&mut HashMap<String, ImageAndDetails>> {
+        if let StateOfImages::HashMap(hasher) = self {
+            Some(hasher)
+        } else {
+            None
+        }
+    }
+    pub fn hashmap_ref(&self) -> Option<&HashMap<String, ImageAndDetails>> {
+        if let StateOfImages::HashMap(hasher) = self {
+            Some(hasher)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct NewNetherPortalInformation {
@@ -49,8 +75,13 @@ pub struct NewNetherPortalInformation {
     pub all_nether_portal_images: Arc<Mutex<HashMap<String, StateOfImages>>>, //HashMap<String, ImageAndDetails>>>>,
     pub displayable_nether_portal: Option<(String, StringNetherPortal)>,
     pub copy_of_nether_portals: HashMap<String, NetherPortal>,
+    pub nether_portal_deletion_wheel: Option<DeletionQueue>,
+    pub generic_window: GenericWindow,
+    pub building_a_nether_portal: Arc<Mutex<(StringNetherPortal, bool)>>,
+    // pub nether_portal_deletion_queue: Option<String>
     pub modify: bool,
 }
+
 impl NewNetherPortalInformation {
     pub fn default() -> Self {
         let instance: Self = Default::default();
@@ -59,18 +90,21 @@ impl NewNetherPortalInformation {
     pub fn try_nether_portal_information(
         nether_portal_information_am: &Arc<Mutex<Option<NewNetherPortalInformation>>>,
         ui: &mut eframe::egui::Ui,
-        mut action: impl FnMut(&mut NewNetherPortalInformation, &mut egui::Ui),
+        ctx: egui::Context,
+        mut action: impl FnMut(&mut NewNetherPortalInformation, &mut egui::Ui, egui::Context),
     ) {
         match nether_portal_information_am.try_lock() {
             Ok(mut guarded_option) => match &mut *guarded_option {
                 Some(nether_portal_information) => {
-                    action(nether_portal_information, ui);
+                    action(nether_portal_information, ui, ctx);
                 }
                 None => {
+                    println!("u1");
                     ui.spinner();
                 }
             },
             Err(_) => {
+                println!("u2");
                 ui.spinner();
             }
         }
@@ -119,7 +153,7 @@ pub struct NetherPortal {
     username: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct StringNetherPortal {
     pub id: String,
     pub overworld: StringPortal,
@@ -127,6 +161,10 @@ pub struct StringNetherPortal {
     pub username: String,
 }
 impl StringNetherPortal {
+    pub fn default() -> Self {
+        let instance: Self = Default::default();
+        instance
+    }
     pub fn get_mut_ref(&mut self, index: &str) -> Result<&mut StringPortal, String> {
         match index {
             "OverWorld" => return Ok(&mut self.overworld),
@@ -187,7 +225,7 @@ impl NetherPortal {
         }
     }
 
-    pub fn convert(string_nether_portal: StringNetherPortal) -> Result<NetherPortal, String> {
+    pub fn convert(string_nether_portal: &StringNetherPortal) -> Result<NetherPortal, String> {
         let portal_value_names = vec![
             "xcord",
             "ycord",
@@ -241,7 +279,7 @@ pub struct Portal {
     true_name: String,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct StringPortal {
     xcord: String,
     ycord: String,
@@ -402,7 +440,7 @@ fn start_up_things() -> Result<HashMap<String, NetherPortal>, String> {
     ) = mpsc::channel();
     let pool = ThreadPool::new(4);
 
-    let mut offset = 0;
+    let mut offset = -1;
     while offset < 5 {
         let tx = sender.clone();
         pool.execute(move || get_some_nether_portals(tx, offset));
@@ -411,8 +449,10 @@ fn start_up_things() -> Result<HashMap<String, NetherPortal>, String> {
     // Read all data from threads into a container and return the container as a (Result)
     // The String in HashMap<String, NetherPortal> is the index primary key from the database
     let mut netherportals: HashMap<String, NetherPortal> = HashMap::new();
-    for some_netherportals in receiver.recv() {
-        netherportals.extend(some_netherportals);
+
+    #[allow(for_loops_over_fallibles)] // how to fix...?
+    for x in receiver.recv() {
+        netherportals.extend(x);
     }
 
     Ok(netherportals)
@@ -426,6 +466,7 @@ fn build_nether_portals_modal(
         previous_modal: String::default(),
         modal_list: Vec::new(),
         image_modal: String::default(),
+        deletion_modal: String::default(),
     };
     // Make a list of names based on (true_name) to be used as a selector for the user modal
     for (_key, some_nether_portal) in some_nether_portals {
@@ -475,7 +516,7 @@ fn store_temporary_user_edits(
                 if let Some(some_tuple) =
                     &mut some_nether_portal_information.displayable_nether_portal
                 {
-                    match NetherPortal::convert(some_tuple.1.clone()) {
+                    match NetherPortal::convert(&some_tuple.1.clone()) {
                         Ok(converted_netherportal) => {
                             *netherportal = converted_netherportal;
                             println!("SUCCESSFULL CONVERSION");
@@ -489,6 +530,7 @@ fn store_temporary_user_edits(
 
     None
 }
+
 fn make_displayable_netherportal(
     all_nether_portals: &HashMap<String, NetherPortal>,
     true_name: &str,
@@ -556,6 +598,13 @@ fn modal_machine_for_nether_portals(
     });
 }
 
+fn make_rich(ss: String, size: Option<f32>) -> egui::widget_text::RichText {
+    let some_size = match size {
+        Some(some_size) => some_size,
+        None => 25.0,
+    };
+    egui::RichText::new(ss).font(egui::FontId::proportional(some_size))
+}
 fn displayable_nether_portal<'a>(
     ui: &mut egui::Ui,
     error_message: &mut Arc<Mutex<ErrorMessage>>,
@@ -571,13 +620,6 @@ fn displayable_nether_portal<'a>(
         "true_name",
     ];
 
-    fn make_rich(ss: String, size: Option<f32>) -> egui::widget_text::RichText {
-        let some_size = match size {
-            Some(some_size) => some_size,
-            None => 25.0,
-        };
-        egui::RichText::new(ss).font(egui::FontId::proportional(some_size))
-    }
     match &mut nether_portal_information.displayable_nether_portal {
         Some(nether_portal) => {
             let headers = ["Nether", "OverWorld"];
@@ -628,7 +670,7 @@ fn save_modified_data(
             || &netherportal.overworld.true_name == current_netherportal_modal
         {
             if let Some(some_tuple) = displayable_nether_portal {
-                match NetherPortal::convert(some_tuple.1.clone()) {
+                match NetherPortal::convert(&some_tuple.1.clone()) {
                     Ok(converted_netherportal) => {
                         *netherportal = converted_netherportal;
                         println!("SUCCESSFULL CONVERSION");
@@ -643,15 +685,46 @@ fn save_modified_data(
     return None;
 }
 
+//let limit = 5;
+//        let url = &format!(
+//            "http://localhost:8123/vecnetherportals?offset={}&limit={}",
+//            offset, limit
+//        );
+//        let result = ureq::get(url).call();
+//        if let Ok(response) = result {
+//            return response;
+//        }
+//        p
+
+fn do_you_have_access_rights(
+    session_information: &Arc<Mutex<SessionInformation>>,
+    current_netherportal: &String,
+) -> bool {
+    if session_information
+        .lock()
+        .unwrap()
+        .access_rights
+        .contains(current_netherportal)
+    {
+        true
+    } else {
+        false
+    }
+}
+
 fn modify_button(
     modify: &mut bool,
     all_nether_portals: &mut HashMap<String, NetherPortal>,
     displayable_nether_portal: &mut Option<(String, StringNetherPortal)>,
     current_netherportal_modal: &String,
+    session_information: &Arc<Mutex<SessionInformation>>,
     ui: &mut egui::Ui,
     error_message: &mut Arc<Mutex<ErrorMessage>>,
 ) {
-    if *current_netherportal_modal != String::default() {
+    do_you_have_access_rights(session_information, current_netherportal_modal);
+    if *current_netherportal_modal != String::default()
+        && do_you_have_access_rights(session_information, current_netherportal_modal)
+    {
         if ui
             .button(format!("Modify NetherPortal: {}", modify))
             .clicked()
@@ -825,6 +898,93 @@ fn insert_state_of_images(
     }
 }
 
+fn load_images(
+    anpi_am_clone: Arc<Mutex<HashMap<String, StateOfImages>>>,
+    error_message: Arc<Mutex<ErrorMessage>>,
+    some_modal: String,
+    some_state_of_images: Option<ImageCollection>,
+) {
+    thread::spawn(move || {
+        insert_state_of_images(
+            &anpi_am_clone,
+            some_modal.clone(),
+            StateOfImages::BeingBuilt,
+        );
+
+        //let state_of_images = match crate::images::image::get_nether_portal_images(&some_modal) {
+        match crate::images::image::get_nether_portal_images(&some_modal) {
+            Ok(image_collection) => {
+                //StateOfImages::HashMap(image_collection)
+                if let Some(mut state_of_images) = some_state_of_images {
+                    state_of_images.extend(image_collection);
+
+                    insert_state_of_images(
+                        &anpi_am_clone,
+                        some_modal,
+                        StateOfImages::HashMap(state_of_images),
+                    );
+                } else {
+                    insert_state_of_images(
+                        &anpi_am_clone,
+                        some_modal,
+                        StateOfImages::HashMap(image_collection),
+                    );
+                }
+            }
+            Err(error_string) => {
+                *error_message.lock().unwrap() =
+                    ErrorMessage::pure_error_message(Some(error_string));
+                insert_state_of_images(&anpi_am_clone, some_modal, StateOfImages::BuildFailed);
+            }
+        };
+    });
+}
+
+fn check_and_report_if_image_server_is_down(error_message: &mut Arc<Mutex<ErrorMessage>>) -> bool {
+    if !ping("http://localhost:1234/ping") {
+        let some_message = Some(format!(
+            "The \"Image Server\" could not be reached. Maybe your internet is down...?"
+        ));
+        *error_message.lock().unwrap() = ErrorMessage::pure_error_message(some_message);
+        println!("did this proc more than once");
+        return false;
+    }
+    true
+}
+
+fn reload_images(
+    all_nether_portal_images: &mut Arc<Mutex<HashMap<String, StateOfImages>>>,
+    modal: &String,
+    ui: &mut egui::Ui,
+    error_message: &mut Arc<Mutex<ErrorMessage>>,
+) {
+    if ui.button("Reload Images").clicked() {
+        if check_and_report_if_image_server_is_down(error_message) {
+            return;
+        }
+        // do this within a thread??
+        if let Ok(mut access) = all_nether_portal_images.try_lock() {
+            if let Some(image_list) = access.remove_entry(modal) {
+                match image_list.1 {
+                    StateOfImages::HashMap(hasher) => {
+                        let anpi_am_clone = Arc::clone(&all_nether_portal_images);
+                        let error_message_am_clone = Arc::clone(&error_message);
+                        let some_modal = modal.clone();
+
+                        load_images(
+                            anpi_am_clone,
+                            error_message_am_clone,
+                            some_modal,
+                            Some(hasher),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn nether_portal_image_handler(
     all_nether_portal_images: Arc<Mutex<HashMap<String, StateOfImages>>>,
     image_modal: &mut String,
@@ -839,26 +999,19 @@ fn nether_portal_image_handler(
                     let anpi_am_clone = Arc::clone(&all_nether_portal_images);
                     let error_message_am_clone = Arc::clone(&error_message);
                     let some_modal = modal.clone();
-
-                    thread::spawn(move || {
-                        insert_state_of_images(
-                            &anpi_am_clone,
-                            some_modal.clone(),
-                            StateOfImages::BeingBuilt,
-                        );
-
-                        let state_of_images =
-                            match crate::images::image::get_nether_portal_images(&some_modal) {
-                                Ok(image_collection) => StateOfImages::HashMap(image_collection),
-                                Err(error_string) => {
-                                    *error_message_am_clone.lock().unwrap() =
-                                        ErrorMessage::pure_error_message(Some(error_string));
-                                    StateOfImages::BuildFailed
-                                }
-                            };
-
-                        insert_state_of_images(&anpi_am_clone, some_modal, state_of_images);
-                    });
+                    if ping("http://localhost:1234/ping") {
+                        // if image server is active (if this isnt checked, the whole program could crash lol)
+                        println!("did this ever trigger!!!!!!!!!!!!!!");
+                        load_images(anpi_am_clone, error_message_am_clone, some_modal, None);
+                    } else {
+                        // if the server is down at the moment of request then a image_collection still needs to be build and assigned
+                        // otherwise the user wont be able to view the images they insert into the program
+                        thread::spawn(move || {
+                            let image_collection: ImageCollection = HashMap::new();
+                            let state_of_images = StateOfImages::HashMap(image_collection);
+                            insert_state_of_images(&anpi_am_clone, some_modal, state_of_images);
+                        });
+                    }
                 }
                 StateOfImages::HashMap(hasher) => {
                     let image_gear = &make_partial_gear(&hasher);
@@ -876,12 +1029,445 @@ fn nether_portal_image_handler(
             }
         }
     }
+    //else {
+    //    ui.spinner();
+    //}
+}
+#[derive(Serialize)]
+struct ImageAndDetailsSerializable {
+    #[serde(rename = "Image")]
+    image: Vec<u8>,
+    image_type: String,
+    #[serde(rename = "Image_Details")]
+    image_details: ImageDetails,
+}
+
+fn send_image_to_image_server(
+    url: String,
+    filename: &str,
+    image: &Vec<u8>,
+) -> Result<ureq::Response, String> {
+    let url = &format!("{}?name={}", url, filename);
+
+    ureq::post(url).send_bytes(image).or_else(|error| {
+        return Err(format!(
+            "we got an error from trying save the image...: -> |{}|",
+            error.to_string()
+        ));
+    })
+}
+
+fn send_cereal_to_server(
+    url: String,
+    //image_details: &ImageDetails,
+    cereal: &impl serde::Serialize,
+) -> Result<ureq::Response, String> {
+    let image_details = &to_vec8(cereal);
+
+    ureq::post(&url).send_bytes(image_details).or_else(|error| {
+        return Err(format!(
+            "We had an error sending the image details to the database for records...: -> |{}|",
+            error.to_string()
+        ));
+    })
+}
+
+fn status_check(response: &ureq::Response) -> Result<(), String> {
+    //! Handles the response status of each http request according to some random design by me lol
+    //! Returns a custom message (wrapped in an "Err Enum") for each incorrect status code
+    //! or a an empty unit for "Ok()"
+    let pattern = |status| format!("status_code: -> |{}|; ", status);
+    let status = response.status();
+    match status {
+        202 => {
+            println!("We successfully status checked");
+            Ok(())
+        }
+        403 => Err(pattern(status)),
+        _ => Err(format!(
+            "The server has denied/disaproved our request...? status_code: -> |{}|",
+            status
+        )),
+    }
+}
+fn name_from_response(response: ureq::Response, image_and_details: &mut ImageAndDetails) {
+    //! retrives the name from the response and assigns it to image_and_details.image_details.name
+    #[derive(Deserialize)]
+    struct Name {
+        name: String,
+    }
+    let name: Name = serde_json::from_reader(response.into_reader()).unwrap();
+
+    image_and_details.image_details.name = name.name
+}
+
+fn save_image_to_serverx(
+    image_and_details: &mut ImageAndDetails,
+    save_image_url: String,
+    save_image_details_url: String,
+) -> Result<(), String> {
+    let path = std::path::Path::new(
+        image_and_details
+            .image_details
+            .local_image
+            .as_ref()
+            .unwrap(),
+    );
+    let filename = get_file_name(path);
+    let image = &path_of_image_to_vec_u8(path).unwrap();
+
+    let response = send_image_to_image_server(save_image_url, filename, image)?;
+    status_check(&response)?;
+
+    name_from_response(response, image_and_details);
+
+    let response = send_cereal_to_server(save_image_details_url, &image_and_details.image_details)?;
+    status_check(&response)?;
+
+    Ok(())
+}
+
+fn save_images(
+    all_nether_portal_images: &mut Arc<Mutex<HashMap<String, StateOfImages>>>,
+    image_key: &String,
+    ui: &mut egui::Ui,
+    save_image_url: &'static str,
+    save_image_details_url: &'static str,
+    error_message: &mut Arc<Mutex<ErrorMessage>>,
+    window_message: &mut Arc<Mutex<WindowMessage>>,
+) {
+    if ui.button("Save Added Images").clicked() {
+        //if !check_and_report_if_image_server_is_down(error_message) {
+        //    println!("server down");
+        //    return;
+        //}
+
+        let anpi_am_clone = Arc::clone(&all_nether_portal_images);
+        let error_message_am_clone = Arc::clone(&error_message);
+        let window_message_am_clone = Arc::clone(&window_message);
+
+        let some_image_key = image_key.clone();
+        let save_image_url = save_image_url.to_string();
+        let save_image_details_url = save_image_details_url.to_string();
+
+        thread::spawn(move || {
+            if let Ok(mut access) = anpi_am_clone.lock() {
+                if let Some(image_list) = access.get_mut(&some_image_key) {
+                    match image_list {
+                        StateOfImages::HashMap(hasher) => {
+                            for (key, image_and_details) in hasher.iter_mut() {
+                                if let Some(_) = image_and_details.image_details.local_image {
+                                    match save_image_to_serverx(
+                                        image_and_details,
+                                        save_image_url.clone(),
+                                        save_image_details_url.clone(),
+                                    ) {
+                                        Ok(_) => {
+                                            WindowMessage::try_access(
+                                                &window_message_am_clone,
+                                                |mut access| {
+                                                    let message = Some(format!("The Image was successfully saved: image_name: -> |{}|", image_and_details.image_details.name));
+                                                    *access =
+                                                        WindowMessage::window_message(message);
+                                                },
+                                            );
+                                            // Reset image now that it is technically no longer a "local image" becuase it was saved to db
+                                            // Dont want people spamming the "Save Added Images" button...
+                                            image_and_details.image_details.local_image = None;
+                                        }
+                                        Err(err) => {
+                                            ErrorMessage::try_access(
+                                                &error_message_am_clone,
+                                                |mut access| {
+                                                    *access = ErrorMessage::pure_error_message(
+                                                        Some(err.clone()),
+                                                    );
+                                                },
+                                            );
+                                        }
+                                    }
+                                    println!(
+                                        "image is not from here: image_name -> |{}| ## key -> |{}| ## bool_value -> |{:?}|",
+                                        image_and_details.image_details.true_name, key, image_and_details.image_details.local_image
+                                    );
+                                }
+                            }
+                        }
+                        _ => {
+                            println!("no hasher?");
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+fn delete_images(
+    all_nether_portal_images: &mut Arc<Mutex<HashMap<String, StateOfImages>>>,
+    nether_portal_deletion_queue: &mut Option<DeletionQueue>,
+    _deletion_modal: &mut String,
+    current_nether_portal_modal: &String,
+    ui: &mut egui::Ui,
+    ctx: egui::Context,
+    error_message: &mut Arc<Mutex<ErrorMessage>>,
+    window_message: &mut Arc<Mutex<WindowMessage>>,
+) {
+    DeletionQueue::handle_deletion_queue(
+        all_nether_portal_images,
+        nether_portal_deletion_queue,
+        current_nether_portal_modal,
+        ui,
+        ctx,
+    );
+
+    fn actually_delete_images_from_server(
+        image_and_details: &ImageAndDetails,
+    ) -> Result<(), String> {
+        let url = &format!(
+            "http://localhost:1234/deleteimage?name={}",
+            image_and_details.image_details.name
+        );
+        // TODO: if any of these requests fail, the client and servers cant bounce back from this properly
+        // make sure to fix it in the future
+        let response = ureq::delete(url)
+            .call()
+            .or_else(|err| Err(err.to_string()))?;
+        status_check(&response)?;
+
+        let response = send_cereal_to_server(
+            "http://localhost:8123/deleteimagefromclient".to_string(),
+            &image_and_details.image_details,
+        )?;
+        status_check(&response)?;
+
+        Ok(())
+    }
+    fn delete_images_from_server(
+        some_deletion_queue: &mut Option<DeletionQueue>,
+        nether_portal_images: &mut Arc<Mutex<HashMap<String, StateOfImages>>>,
+        modal: &String,
+    ) -> Result<(), Vec<String>> {
+        let mut result: Vec<String> = Vec::new();
+
+        let mut subfn = || -> Result<(), String> {
+            fn queue_from_deletion_queue(
+                some_deletion_queue: &mut Option<DeletionQueue>,
+            ) -> Result<&Vec<Victim>, String> {
+                let deletion_queue = if let Some(deletion_queue) = some_deletion_queue {
+                    deletion_queue
+                } else {
+                    return Err("No deletion_queue in Option<DeletionQueue>".to_string());
+                };
+                let queue = deletion_queue
+                    .queue
+                    .as_ref()
+                    .ok_or("no queue in deletion_queue".to_string())?;
+
+                Ok(queue)
+            }
+
+            let mut hasher = nether_portal_images.lock().unwrap();
+            let state_of_images = hasher
+                .get_mut(modal)
+                .ok_or(format!("failed to get value with key -> |{}|", modal))?;
+            let hasher = state_of_images
+                .hashmap_mut()
+                .ok_or(format!("hashmap_mut failed"))?;
+
+            let queue = queue_from_deletion_queue(some_deletion_queue)?;
+
+            for victim in queue.iter() {
+                if victim.staged {
+                    hasher.get(&victim.name).and_then(|image_and_details| {
+                        if let Err(err) = actually_delete_images_from_server(image_and_details) {
+                            result.push(err);
+                        }
+                        Some(image_and_details)
+                    });
+                }
+            }
+
+            Ok(())
+        };
+
+        if let Err(err) = subfn() {
+            result.push(err);
+            return Err(result);
+        }
+        if !result.is_empty() {
+            return Err(result);
+        }
+        Ok(())
+    }
+
+    if ui.button("Delete Images From Server").clicked() {
+        match delete_images_from_server(
+            nether_portal_deletion_queue,
+            all_nether_portal_images,
+            current_nether_portal_modal,
+        ) {
+            Ok(_) => {
+                *window_message.lock().unwrap() = WindowMessage::window_message(Some(
+                    "All images sent deleted successfully".to_string(),
+                ));
+            }
+            Err(errors) => {
+                let mut message = String::new();
+                errors.iter().for_each(|err_string| {
+                    message = format!("{}error: -> |{}|\n", message, err_string)
+                });
+                *error_message.lock().unwrap() = ErrorMessage::pure_error_message(Some(message));
+            }
+        }
+    }
+
+    // 1) iter over deletion list
+    // 2) if list.item.staged == true
+    // 3) create a queue and delete each picture
+    // SERVER SIDE
+    // make a route to handle a request with image details
+    // take details and say to db DELETE BY THE HAND OF GOD
+    // happy delete noises
+    // descend into further madness...
+
+    // also after each successfull delete... somehow remove them from the client as well
+    // also make a delete button
+    // also tell the user of the success or failure...
+
+    // kill
+}
+pub trait Otherwise {
+    // result: &Result<(), String>
+    fn otherwise(&self, string: &str) -> Result<(), String>;
+}
+impl Otherwise for Result<(), String> {
+    fn otherwise(&self, string: &str) -> Result<(), String> {
+        if let Err(err) = self {
+            return Err(format!("{}{}", err, string));
+        }
+        Ok(())
+    }
+}
+
+fn add_nether_portal_to_server(
+    //string_nether_portal_tuple: &mut Arc<Mutex<(StringNetherPortal, bool)>>,
+    string_nether_portal: &impl serde::Serialize,
+) -> Result<(), String> {
+    //let string_nether_portal = &string_nether_portal_tuple.lock().unwrap().0;
+
+    let response = send_cereal_to_server(
+        "http://localhost:8123/addnetherportal".to_string(),
+        string_nether_portal,
+    )?;
+    status_check(&response).otherwise("/addnetherportals; Was not successfully added...")?;
+
+    Ok(())
+}
+
+fn add_nether_portal(
+    //all_nether_portal_information: &mut Arc<Mutex<Option<NewNetherPortalInformation>>>,
+    nether_portals: &HashMap<String, NetherPortal>,
+    generic_window: &mut GenericWindow,
+    building_a_nether_portal: &mut Arc<Mutex<(StringNetherPortal, bool)>>, //Option<StringNetherPortal>,
+    _current_nether_portal_modal: &String,
+    username: &String,
+    ctx: egui::Context,
+    ui: &mut egui::Ui,
+    error_message: &mut Arc<Mutex<ErrorMessage>>,
+    window_message: &mut Arc<Mutex<WindowMessage>>,
+) {
+    let _ctx1 = ctx.clone();
+    let am_clone_bnp = Arc::clone(building_a_nether_portal);
+    generic_window.is_window_open = generic_window.display_closure(
+        &ctx,
+        "Add Images",
+        Box::new(move |ui, _ctx1| {
+            let headers = ["Nether", "OverWorld"];
+            let portal_field_names = vec![
+                "xcord",
+                "ycord",
+                "zcord",
+                "locale",
+                "owner",
+                "notes",
+                "true_name",
+            ];
+
+            ui.horizontal_wrapped(|ui| {
+                let mut both = am_clone_bnp.lock().unwrap();
+                let string_nether_portal = &mut both.0;
+                headers.iter().for_each(|header| {
+                    ui.heading(make_rich(header.to_string(), Some(22.0)));
+                    ui.end_row();
+                    portal_field_names.iter().for_each(|field| {
+                        let string_portal = string_nether_portal.get_mut_ref(header).unwrap();
+                        ui.label(format!("{}: ->", field));
+                        ui.add(egui::TextEdit::singleline(
+                            string_portal.get_mut(field).unwrap(),
+                        ));
+                        ui.end_row();
+                    });
+                });
+                if ui.button("Save Nether Portal").clicked() {
+                    both.1 = true;
+                }
+            });
+        }),
+    );
+    generic_window.open_window_on_click(ui, "Add Nether Portals");
+
+    let mut both = building_a_nether_portal.lock().unwrap();
+
+    if both.1 {
+        both.0.username = username.to_string();
+        both.0.id = 0.to_string();
+        let netherportal = match NetherPortal::convert(&both.0) {
+            Ok(np) => np,
+            Err(err) => {
+                *error_message.lock().unwrap() =
+                    ErrorMessage::pure_error_message(Some(err + " special"));
+                return;
+            }
+        };
+        match add_nether_portal_to_server(&netherportal) {
+            Ok(_) => {
+                *window_message.lock().unwrap() = WindowMessage::window_message(Some(
+                    "Successfully saved netherportal".to_string(),
+                ));
+            }
+            Err(err) => {
+                for (key, _) in nether_portals {
+                    println!("the KEy IS: -> |{}|", key);
+                    //anpi.all_nether_portals.insert(k, v)
+                    // xjump xla
+                }
+                *error_message.lock().unwrap() = ErrorMessage::pure_error_message(Some(err))
+            }
+        };
+        both.1 = false
+    }
+}
+
+fn ping(server_url: &str) -> bool {
+    let result = ureq::get(server_url).call();
+    match result {
+        Ok(_response) => {
+            return true;
+        }
+        Err(_error) => return false,
+    };
 }
 
 pub fn new_nether_portal(
     error_message: &mut Arc<Mutex<ErrorMessage>>,
     window_message: &mut Arc<Mutex<WindowMessage>>,
     all_nether_portal_information: &Arc<Mutex<Option<NewNetherPortalInformation>>>,
+    session_information: &Arc<Mutex<SessionInformation>>,
+    user_picked_filepath: &mut Option<String>,
+    username: &String,
+    save_image_url: &'static str,
+    save_image_details_url: &'static str,
     ui: &mut egui::Ui,
     ctx_clone: egui::Context,
 ) {
@@ -889,7 +1475,6 @@ pub fn new_nether_portal(
         // create variables usable inside thread::spawn
         let error_message_am_clone = Arc::clone(error_message);
         let all_nether_portal_information_am_clone = Arc::clone(all_nether_portal_information);
-
         thread::spawn(move || {
             // Retrieve nether portal information from webserver and handle any errors
             let nether_portals = match start_up_things() {
@@ -911,6 +1496,15 @@ pub fn new_nether_portal(
                     all_nether_portal_images: Arc::new(Mutex::new(HashMap::new())),
                     displayable_nether_portal: None,
                     copy_of_nether_portals: copy,
+                    nether_portal_deletion_wheel: None,
+                    generic_window: GenericWindow::default(),
+                    building_a_nether_portal: Arc::new(Mutex::new((
+                        StringNetherPortal::default(),
+                        false,
+                    ))),
+                    //building_a_nether_portal: Arc::new(Mutex::new(Some(
+                    //    StringNetherPortal::default(),
+                    //))),
                     modify: bool::default(),
                 });
         });
@@ -920,9 +1514,21 @@ pub fn new_nether_portal(
     NewNetherPortalInformation::try_nether_portal_information(
         all_nether_portal_information,
         ui,
-        |some_nether_portal_information, ui| {
+        ctx_clone.clone(),
+        |some_nether_portal_information, ui, ctx| {
             //let access_am_clone = Arc::clone(&all_nether_portal_information.lock().unwrap().as_ref().unwrap().all_nether_portal_images);
             ui.horizontal(|ui| {
+                add_nether_portal(
+                    &mut some_nether_portal_information.all_nether_portals,
+                    &mut some_nether_portal_information.generic_window,
+                    &mut some_nether_portal_information.building_a_nether_portal,
+                    &some_nether_portal_information.modal_information.modal,
+                    username,
+                    ctx.clone(),
+                    ui,
+                    error_message,
+                    window_message,
+                );
                 // create a modal machine with its information
                 modal_machine_for_nether_portals(some_nether_portal_information, ui, error_message);
                 // allow user to modify the current chosen netherportal being displayed
@@ -931,6 +1537,7 @@ pub fn new_nether_portal(
                     &mut some_nether_portal_information.all_nether_portals,
                     &mut some_nether_portal_information.displayable_nether_portal,
                     &some_nether_portal_information.modal_information.modal,
+                    session_information,
                     ui,
                     error_message,
                 );
@@ -951,12 +1558,48 @@ pub fn new_nether_portal(
                     error_message,
                     window_message,
                 );
+                save_images(
+                    &mut some_nether_portal_information.all_nether_portal_images,
+                    &some_nether_portal_information.modal_information.modal,
+                    ui,
+                    save_image_url,
+                    save_image_details_url,
+                    error_message,
+                    window_message,
+                );
+                delete_images(
+                    &mut some_nether_portal_information.all_nether_portal_images,
+                    &mut some_nether_portal_information.nether_portal_deletion_wheel,
+                    &mut some_nether_portal_information
+                        .modal_information
+                        .deletion_modal,
+                    &some_nether_portal_information.modal_information.modal,
+                    ui,
+                    ctx,
+                    error_message,
+                    window_message,
+                );
+                add_files(
+                    user_picked_filepath,
+                    &mut some_nether_portal_information.all_nether_portal_images,
+                    &some_nether_portal_information.modal_information.modal,
+                    username,
+                    ui,
+                    window_message,
+                    error_message,
+                );
+                reload_images(
+                    &mut some_nether_portal_information.all_nether_portal_images,
+                    &some_nether_portal_information.modal_information.modal,
+                    ui,
+                    error_message,
+                );
                 ui.end_row();
             });
             ui.horizontal(|ui| {
                 displayable_nether_portal(ui, error_message, some_nether_portal_information);
 
-                // if you can access client images
+                // if you can access client images, show some images...
                 nether_portal_image_handler(
                     Arc::clone(&some_nether_portal_information.all_nether_portal_images),
                     &mut some_nether_portal_information.modal_information.image_modal,

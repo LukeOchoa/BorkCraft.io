@@ -1,11 +1,13 @@
 use crate::{
     borkcraft_app::{BorkCraft, SessionInformation, SessionTime},
     errors::client_errors::ErrorMessage,
-    to_vec8, ureq_did_request_go_through_f,
+    //thread_tools::ThreadPool,
+    to_vec8,
+    ureq_did_request_go_through_f,
     windows::client_windows::WindowMessage,
     ResponseResult,
 };
-use eframe::egui;
+use eframe::{egui, epaint::ahash::HashMap};
 use serde_derive::Serialize;
 use std::ops::{Index, IndexMut};
 use ureq::{Error, Response};
@@ -53,6 +55,16 @@ impl LoginForm {
     }
 }
 
+fn get_access_rights(username: &String) -> Result<ureq::Response, ureq::Error> {
+    let url = &format!(
+        "http://localhost:8123/getaccessrights?username={}",
+        username
+    );
+    let result = ureq::get(url).call();
+
+    result
+}
+
 pub fn login(
     the_self: &mut BorkCraft,
     ui: &mut egui::Ui,
@@ -76,7 +88,7 @@ pub fn login(
                     to_vec8(&the_self.login_form),
                     &const_login_url.to_string(),
                 );
-                // Check the response #Mutations
+                // Check the Response
                 let result = ureq_did_request_go_through_f(
                     did_request_go_through,
                     Box::new(|response: ureq::Response| {
@@ -85,6 +97,7 @@ pub fn login(
                         ));
                     }),
                 );
+
                 match result {
                     Ok(response_result) => {
                         if let ResponseResult::SessionInformation(session_information) =
@@ -98,6 +111,27 @@ pub fn login(
                     }
                     Err(error) => *the_self.error_message.lock().unwrap() = error,
                 }
+
+                // get access rights list from server
+                let result = get_access_rights(&the_self.login_form.username);
+                match result {
+                    Ok(response) => {
+                        // the list is a hashmap technically with the type of "hashmap -> array of strings"
+                        // so convert it from the json response
+                        let mut hasher: HashMap<String, Vec<String>> =
+                            serde_json::from_str(&response.into_string().unwrap()).unwrap();
+
+                        // then take that array of strings and remove it from the hashmap to a random object
+                        let ival = hasher.remove("access_rights").unwrap();
+
+                        // transfer ownership to the SessionInformation master data structure
+                        the_self.session_information.lock().unwrap().access_rights = ival;
+                    }
+                    Err(error) => {
+                        *the_self.error_message.lock().unwrap() =
+                            ErrorMessage::pure_error_message(Some(error.to_string()))
+                    }
+                }
             }
         } else {
             ui.label("Your already logged in!");
@@ -107,7 +141,7 @@ pub fn login(
                     to_vec8(&the_self.login_form),
                     &const_logout_url.to_string(),
                 );
-                // Check if http request was sucessfull #Mutations
+                // Check if http request was sucessfull
                 let result = did_logout_succeed(did_request_go_through);
                 if let Some(set_error_message) = result {
                     *the_self.error_message.lock().unwrap() = set_error_message;
@@ -146,6 +180,7 @@ fn login_response_to_session_information(response: Response) -> SessionInformati
         time: session_time.time,
         key: session_time.key,
         is_logged_in: true,
+        access_rights: Vec::default(),
         window_message: WindowMessage::default(),
     }
 }

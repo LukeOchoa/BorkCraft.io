@@ -1,5 +1,6 @@
 mod borkcraft;
 mod errors;
+mod files;
 mod images;
 mod login;
 mod pages;
@@ -8,6 +9,7 @@ mod windows;
 pub use borkcraft::*;
 use borkcraft_app::SessionInformation;
 use errors::client_errors::ErrorMessage;
+pub use files::local_files;
 pub use pages::nether_portals::*;
 
 use serde::Serialize;
@@ -19,6 +21,29 @@ pub enum ResponseResult {
     SessionInformation(SessionInformation),
     NetherPortal(NetherPortal),
 }
+
+//struct HttpStatus{}
+//impl StatusCheck {
+//    pub fn status_check(response: &ureq::Response) -> Result<(), String> {
+//        //! Handles the response status of each http request according to some random design by me lol
+//        //! Returns a custom message (wrapped in an "Err Enum") for each incorrect status code
+//        //! or a an empty unit for "Ok()"
+//        let status = response.status();
+//        match status {
+//            202 => {
+//                println!("We successfully status checked");
+//                Ok(())
+//            }
+//            403 => Err(format!("Status 403:")),
+//            _ => Err(format!(
+//                "The server has denied/disaproved our request...? status_code: -> |{}|",
+//                status
+//            )),
+//        }
+//    }
+//
+//}
+
 pub fn ureq_did_request_go_through_f(
     did_request_go_through: Result<ureq::Response, ureq::Error>,
     job: Box<dyn Fn(ureq::Response) -> Result<ResponseResult, String>>,
@@ -53,6 +78,7 @@ pub fn ureq_did_request_go_through_f(
         }
     }
 }
+
 pub fn match_out_nether_portal_keys_to_string2(
     did_request_go_through: Result<ureq::Response, ureq::Error>,
 ) -> Result<String, ErrorMessage> {
@@ -81,8 +107,77 @@ pub fn match_out_nether_portal_keys_to_string2(
         Err(error) => return Err(error),
     }
 }
+
 mod eframe_tools {
 
+    pub mod egui_tools {
+        // use egui_extras::RetainedImage;
+        use std::{fs::File, io::Read, path::Path};
+
+        // TODO:
+        // make a function that turns a path into a Vec<u8> and returns the Vec<u8>
+
+        //pub fn get_file_type(path: &Path) -> &str {
+        //    let file_extension = path.extension().and_then(std::ffi::OsStr::to_str).unwrap();
+
+        //    file_extension
+        //}
+        pub fn get_file_name(path: &Path) -> &str {
+            let filename = path.file_name().and_then(std::ffi::OsStr::to_str).unwrap();
+
+            filename
+        }
+        //pub fn turn_path_into_image(path: &Path) -> Result<RetainedImage, String> {
+        //    let file = match File::open(path) {
+        //        Ok(file) => file,
+        //        Err(_) => {
+        //            return Err(format!(
+        //                "The file: |{}| could not be opened...",
+        //                get_file_name(path)
+        //            ))
+        //        }
+        //    };
+
+        //    let mut reader = std::io::BufReader::new(file);
+        //    let mut buffer = Vec::new();
+        //    match reader.read_to_end(&mut buffer) {
+        //        Ok(_) => {}
+        //        Err(_) => {
+        //            return Err(format!(
+        //                "Failed to read file: |{}| all the way to the end of file...",
+        //                get_file_name(path)
+        //            ))
+        //        }
+        //    }
+        //    let image = egui_extras::image::RetainedImage::from_image_bytes("your mom", &buffer);
+
+        //    image
+        //}
+        pub fn path_of_image_to_vec_u8(path: &Path) -> Result<Vec<u8>, String> {
+            let file = match File::open(path) {
+                Ok(file) => file,
+                Err(_) => {
+                    return Err(format!(
+                        "The file: |{}| could not be opened...",
+                        get_file_name(path)
+                    ))
+                }
+            };
+            let mut reader = std::io::BufReader::new(file);
+            let mut buffer = Vec::new();
+            match reader.read_to_end(&mut buffer) {
+                Ok(_) => {}
+                Err(_) => {
+                    return Err(format!(
+                        "The file: |{}| could not be opened...",
+                        get_file_name(path)
+                    ))
+                }
+            }
+
+            Ok(buffer)
+        }
+    }
     pub mod modal_machines {
         use crate::NewNetherPortalInformation;
         use std::sync::{Arc, Mutex};

@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Default)]
 pub struct ErrorMessage {
@@ -19,9 +20,9 @@ impl ErrorMessage {
         self.error = error_message;
         self.is_window_open = is_window_open;
     }
-    pub fn pure_error_message(error_message: Option<String>) -> ErrorMessage {
+    pub fn pure_error_message(some_error_message: Option<String>) -> ErrorMessage {
         ErrorMessage {
-            error: error_message,
+            error: some_error_message,
             is_window_open: true,
             try_to_open_window: false,
         }
@@ -53,5 +54,23 @@ impl ErrorMessage {
         }
         is_window_shut
     }
+    // mut action: impl FnMut(&str)
+    pub fn try_access(
+        error_message_am_clone: &Arc<Mutex<ErrorMessage>>,
+        mut f: impl FnMut(MutexGuard<ErrorMessage>),
+    ) {
+        loop {
+            if let Ok(access) = error_message_am_clone.try_lock() {
+                f(access);
+                break;
+            }
+        }
+    }
+
+    //loop {
+    //        if let Ok(mut access) = try_access.try_lock() {
+    //        }
+    //}
+
     //pub fn error_job(error_reason: &str, error_string: String) -> ErrorMessage{}
 }

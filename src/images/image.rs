@@ -1,5 +1,5 @@
 use egui_extras::RetainedImage;
-use serde_derive::Deserialize;
+use serde_derive::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::mpsc::{self, Receiver, Sender},
@@ -10,7 +10,7 @@ use crate::{
     thread_tools::ThreadPool,
 };
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ImageDetails {
     #[serde(rename = "Id")]
     pub id: i32,
@@ -20,12 +20,20 @@ pub struct ImageDetails {
     pub true_name: String,
     #[serde(rename = "Username")]
     pub username: String,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub local_image: Option<String>, // if local_image is "True" then the image was added by the user in the current "program session"(not client/server session)
+                                     // maybe at some point if the user request, then this will be used to determin if this data in the struct should be saved to a server
+                                     // i need a path if its a local image.
+                                     // i could create a path variable or i could simply use local_image as an Option<String> aka Option<Path>
+                                     // and when my code looks for a bool value this could be the replacement...
 }
 // Big Boi Data is: HashMap<String, ImageAndDetails>
 pub struct ImageAndDetails {
     pub image: RetainedImage,
     pub image_details: ImageDetails,
 }
+
+// SELECT true_name, count(true_name) FROM netherportal_images WHERE username='World Spawn' GROUP BY true_name;
 
 fn response_to_retained_image(response: ureq::Response) -> Result<RetainedImage, String> {
     let mut bytes: Vec<u8> = Vec::new();
@@ -121,6 +129,7 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
     for (_, image_details) in list {
         let tx = sender.clone();
         pool.execute(|| {
+            println!("NAME OF THE IMAGE TO GET? -> |{}|", image_details.name);
             get_image_from_server(tx, image_details);
         });
     }
@@ -137,7 +146,11 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
     };
     for _ in 0..length {
         if let Err(error) = subfn() {
-            panic!("98798797987987\n\nh{}", error.to_string());
+            panic!(
+                "The length is: -> |{}|  ###  what you tried to get by name: name: -> ||    ###  98798797987987\n\nh{}",
+                length,
+                error.to_string()
+            );
         }
     }
     println!("RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR");
