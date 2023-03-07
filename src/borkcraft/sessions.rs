@@ -40,10 +40,12 @@ struct Key {
 
 pub fn current_session_time(
     session_information: Arc<Mutex<SessionInformation>>,
+    session_time_left_url: &'static str,
     ctx: egui::Context,
 ) {
     thread::spawn(move || loop {
-        let result = ureq::post("http://localhost:8123/sessiontimeleft").send_json(Key {
+        // "http://localhost:8123/sessiontimeleft"
+        let result = ureq::post(session_time_left_url).send_json(Key {
             key: session_information.lock().unwrap().key.clone(),
         });
 

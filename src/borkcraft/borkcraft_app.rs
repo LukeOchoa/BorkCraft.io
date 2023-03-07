@@ -18,10 +18,41 @@ use std::{
 const LOGIN_FORM: &'static [&'static str] = &["username", "password"];
 static START: Once = Once::new();
 
-const LOGOUT_URL: &'static str = "http://localhost:8123/nativelogout";
-const LOGIN_URL: &'static str = "http://localhost:8123/nativelogin2";
-const SAVE_IMAGE_DETAILS_URL: &'static str = "http://localhost:8123/saveimagefromclient";
-const SAVE_IMAGE_URL: &'static str = "http://localhost:1234/saveimage";
+const _PUBLIC_DNS: &'static str = "ec2-54-176-200-180.us-west-1.compute.amazonaws.com";
+
+const LOGOUT_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/logout"; //"localhost:8334/logout"; // REPLACED! "http://localhost:8123/nativelogout";
+const LOGIN_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/login"; //"http://localhost:8334/login"; //  REPLACED! "http://localhost:8123/nativelogin2";
+
+const ADD_NETHER_PORTAL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/addnetherportaltext"; // "http://localhost:8334/addnetherportaltext"; // REPLACED! "http://localhost:8123/addnetherportal";
+
+const SAVE_IMAGE_DETAILS_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/addnetherportalimagedetails";
+//"http://" + PUBLIC_DNS + ":8334/addnetherportalimagedetails"; // REPLACED! "http://localhost:8334/savenetherportalimagedetails";    // "http://localhost:8123/saveimagefromclient";
+
+const SAVE_IMAGE_URL: &'static str = "http://localhost:1234/saveimage"; // DONT REPLACE YET
+const SAVE_NETHER_PORTAL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/savenetherportaltextchanges";
+// "http://localhost:8334/savenetherportaltextchanges"; // REPLACED! "http://localhost:8123/savenetherportals";
+
+const DELETE_IMAGE: &'static str = "http://localhost:1234/deleteimage"; // DONT REPLACE YET
+const DELETE_IMAGE_FROM_CLIENT: &'static str = "http://localhost:1234/deleteimagefromclient"; // DONT REPLACE YET "http://localhost:1234/deleteimage?name={}"
+
+const RETRIEVE_NETHER_PORTALS: &'static str = "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/getnetherportalstextinformation";
+// "http://localhost:8334/getnetherportalstextinformation?"; // REPLACED! "http://localhost:8123/vecnetherportals?";
+
+const GET_ACCESS_RIGHTS_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/getaccessrights"; // "http://localhost:8334/getaccessrights"; // REPLACED! "http://localhost:8123/getaccessrights";
+const GET_NETHER_PORTAL_IMAGES_URL: &'static str = "http://localhost:1234/getnetherportalimage"; // DONT REPLACE YET
+
+const SESSION_TIME_LEFT_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/sessiontimeleft"; // "http://localhost:8334/sessiontimeleft"; //  REPLACED! "http://localhost:8123/sessiontimeleft";
+
+const GET_NETHER_PORTAL_IMAGE_NAMES_URL: &'static str =
+    "http://ec2-54-176-200-180.us-west-1.compute.amazonaws.com:8334/getnetherportalimagenames";
+// "http://localhost:8123/getnetherportalimagenames"; //  REPLACED! "http://localhost:8123/getnetherportalimagenames?true_name={}",
 
 #[derive(Default)]
 pub struct ImageCache {
@@ -111,7 +142,11 @@ pub fn modal_machine(
 impl eframe::App for BorkCraft {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         START.call_once(|| {
-            current_session_time(Arc::clone(&self.session_information), ctx.clone());
+            current_session_time(
+                Arc::clone(&self.session_information),
+                SESSION_TIME_LEFT_URL,
+                ctx.clone(),
+            );
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -132,7 +167,14 @@ impl eframe::App for BorkCraft {
             );
 
             match self.selected_modal_page.as_str() {
-                "Login" => login(self, ui, LOGIN_FORM, LOGIN_URL, LOGOUT_URL),
+                "Login" => login(
+                    self,
+                    ui,
+                    LOGIN_FORM,
+                    LOGIN_URL,
+                    LOGOUT_URL,
+                    GET_ACCESS_RIGHTS_URL,
+                ),
                 "Nether Portals" => {
                     //let time = self.session_information.lock().unwrap().time.second.clone();
                     if self.session_information.lock().unwrap().is_logged_in {
@@ -143,6 +185,13 @@ impl eframe::App for BorkCraft {
                             &self.session_information,
                             &mut self.user_picked_filepath,
                             &self.login_form.username,
+                            GET_NETHER_PORTAL_IMAGE_NAMES_URL,
+                            GET_NETHER_PORTAL_IMAGES_URL,
+                            DELETE_IMAGE,
+                            DELETE_IMAGE_FROM_CLIENT,
+                            SAVE_NETHER_PORTAL,
+                            RETRIEVE_NETHER_PORTALS,
+                            ADD_NETHER_PORTAL,
                             SAVE_IMAGE_URL,
                             SAVE_IMAGE_DETAILS_URL,
                             ui,

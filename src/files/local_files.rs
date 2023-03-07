@@ -53,11 +53,6 @@ pub fn add_files(
             )));
         }
 
-        //let _x = &*all_netherportal_images
-        //    .lock()
-        //    .unwrap()
-        //    .get(true_name)
-        //    .unwrap();
         fn get_file_type(path: &Path) -> &str {
             let file_extension = path.extension().and_then(std::ffi::OsStr::to_str).unwrap();
 
@@ -126,7 +121,7 @@ pub fn add_files(
                         };
                         let image_details = ImageDetails {
                             id: -1,
-                            name: get_file_name(path).to_string(,
+                            name: get_file_name(path).to_string(),
                             true_name: true_name.clone(), // filename.to_string()
                             username: username.to_string(),
                             local_image: Some(almost_path.to_string()),

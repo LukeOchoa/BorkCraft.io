@@ -52,6 +52,19 @@ impl GenericWindow {
             .show(ctx, |ui| f(ui, ctx.clone()));
         is_window_shut
     }
+    pub fn display_closure_x(
+        &mut self,
+        ctx: &eframe::egui::Context,
+        name: &str,
+        mut f: impl FnMut(&mut eframe::egui::Ui),
+    ) -> bool {
+        let mut is_window_shut: bool = self.is_window_open;
+        eframe::egui::Window::new(name)
+            .open(&mut is_window_shut)
+            .show(ctx, |ui| f(ui));
+
+        is_window_shut
+    }
 }
 
 #[derive(Default)]

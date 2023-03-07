@@ -55,11 +55,9 @@ impl LoginForm {
     }
 }
 
-fn get_access_rights(username: &String) -> Result<ureq::Response, ureq::Error> {
-    let url = &format!(
-        "http://localhost:8123/getaccessrights?username={}",
-        username
-    );
+fn get_access_rights(username: String, url: String) -> Result<ureq::Response, ureq::Error> {
+    //"http://localhost:8123/getaccessrights?username={}",
+    let url = &format!("{}?username={}", url, username);
     let result = ureq::get(url).call();
 
     result
@@ -71,6 +69,7 @@ pub fn login(
     const_login_form: &'static [&'static str],
     const_login_url: &'static str,
     const_logout_url: &'static str,
+    const_access_rights_url: &'static str,
 ) {
     egui::Grid::new(1).show(ui, |ui| {
         // If Client Is Logged In
@@ -113,7 +112,10 @@ pub fn login(
                 }
 
                 // get access rights list from server
-                let result = get_access_rights(&the_self.login_form.username);
+                let result = get_access_rights(
+                    the_self.login_form.username.clone(),
+                    const_access_rights_url.to_string(),
+                );
                 match result {
                     Ok(response) => {
                         // the list is a hashmap technically with the type of "hashmap -> array of strings"

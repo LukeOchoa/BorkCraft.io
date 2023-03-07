@@ -35,52 +35,59 @@ pub struct ImageAndDetails {
 
 // SELECT true_name, count(true_name) FROM netherportal_images WHERE username='World Spawn' GROUP BY true_name;
 
-fn response_to_retained_image(response: ureq::Response) -> Result<RetainedImage, String> {
+fn response_to_retained_image(
+    response: ureq::Response,
+    url: String,
+) -> Result<RetainedImage, String> {
+    // "http://localhost:8123/getnetherportalimages",
     let mut bytes: Vec<u8> = Vec::new();
     response.into_reader().read_to_end(&mut bytes).unwrap();
-    let image = egui_extras::image::RetainedImage::from_image_bytes(
-        "http://localhost:8123/getnetherportalimages",
-        &bytes,
-    )
-    .unwrap();
+    let image = egui_extras::image::RetainedImage::from_image_bytes(url, &bytes).unwrap();
 
     Ok(image)
 }
 
-fn fetch_image_response(name: &String) -> Result<ureq::Response, String> {
-    match ureq::get(&format!(
-        "http://localhost:1234/getnetherportalimage?name={}",
-        name
-    ))
-    .call()
-    {
+fn fetch_image_response(name: &String, url: String) -> Result<ureq::Response, String> {
+    // "http://localhost:1234/getnetherportalimage?name={}",
+    match ureq::get(&format!("{}?name={}", url, name)).call() {
         Ok(response) => return Ok(response),
         Err(error) => return Err(error.to_string()),
     }
 }
 
-fn _get_images_from_server(
-    image_details_hm: HashMap<String, ImageDetails>,
-) -> Result<HashMap<String, ImageAndDetails>, String> {
-    let mut hashy: HashMap<String, ImageAndDetails> = HashMap::new();
-    for (_key, image_details) in image_details_hm {
-        let response = fetch_image_response(&image_details.name)?;
-        let image = response_to_retained_image(response)?;
-        hashy.insert(
-            image_details.name.clone(),
-            ImageAndDetails {
-                image,
-                image_details,
-            },
-        );
-    }
-    Ok(hashy)
-}
+//fn _get_images_from_server(
+//    image_details_hm: HashMap<String, ImageDetails>,
+//) -> Result<HashMap<String, ImageAndDetails>, String> {
+//    let mut hashy: HashMap<String, ImageAndDetails> = HashMap::new();
+//    for (_key, image_details) in image_details_hm {
+//        let response = fetch_image_response(&image_details.name)?;
+//        let image = response_to_retained_image(response)?;
+//        hashy.insert(
+//            image_details.name.clone(),
+//            ImageAndDetails {
+//                image,
+//                image_details,
+//            },
+//        );
+//    }
+//    Ok(hashy)
+//}
 
-fn get_image_from_server(tx: Sender<Result<ImageAndDetails, String>>, image_details: ImageDetails) {
+fn get_image_from_server(
+    tx: Sender<Result<ImageAndDetails, String>>,
+    image_details: ImageDetails,
+    get_nether_portal_images_url: String,
+) {
     let subfn = || -> Result<ImageAndDetails, String> {
-        let response = fetch_image_response(&image_details.name)?;
-        let image = response_to_retained_image(response)?;
+        let response = fetch_image_response(
+            &image_details.name,
+            get_nether_portal_images_url.to_string(),
+        )?;
+        println!(
+            "we found before the error\n\n {}|{}",
+            image_details.name, image_details.true_name
+        );
+        let image = response_to_retained_image(response, get_nether_portal_images_url.to_string())?;
         let image_and_details = ImageAndDetails {
             image,
             image_details,
@@ -102,13 +109,14 @@ fn response_to_image_details(response: ureq::Response) -> HashMap<String, ImageD
 
 fn ask_server_for_image_list_for_netherportals(
     true_name: &String,
+    url: String,
 ) -> Result<ureq::Response, String> {
-    match ureq::get(&format!(
-        "http://localhost:8123/getnetherportalimagenames?true_name={}",
-        true_name
-    ))
-    .call()
-    {
+    // "http://localhost:8123/getnetherportalimagenames?true_name={}",
+    println!(
+        "DISGASSSTIN: {}",
+        format!("{}?true_name={}", url, true_name),
+    );
+    match ureq::get(&format!("{}?true_name={}", url, true_name)).call() {
         Ok(response) => Ok(response),
         Err(error) => Err(error.to_string()),
     }
@@ -116,8 +124,13 @@ fn ask_server_for_image_list_for_netherportals(
 
 pub type ImageCollection = HashMap<String, ImageAndDetails>;
 
-pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, String> {
-    let response = ask_server_for_image_list_for_netherportals(true_name)?;
+pub fn get_nether_portal_images(
+    true_name: &String,
+    get_nether_portal_images_url: &'static str,
+    get_npin_url: &'static str,
+) -> Result<ImageCollection, String> {
+    let response =
+        ask_server_for_image_list_for_netherportals(true_name, get_npin_url.to_string())?;
     let list = response_to_image_details(response);
     let length = list.len();
     let pool = ThreadPool::new(length);
@@ -130,7 +143,7 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
         let tx = sender.clone();
         pool.execute(|| {
             println!("NAME OF THE IMAGE TO GET? -> |{}|", image_details.name);
-            get_image_from_server(tx, image_details);
+            get_image_from_server(tx, image_details, get_nether_portal_images_url.to_string());
         });
     }
 
