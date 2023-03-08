@@ -142,11 +142,7 @@ pub fn modal_machine(
 impl eframe::App for BorkCraft {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         START.call_once(|| {
-            current_session_time(
-                Arc::clone(&self.session_information),
-                SESSION_TIME_LEFT_URL,
-                ctx.clone(),
-            );
+            current_session_time(Arc::clone(&self.session_information), ctx.clone());
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -167,14 +163,7 @@ impl eframe::App for BorkCraft {
             );
 
             match self.selected_modal_page.as_str() {
-                "Login" => login(
-                    self,
-                    ui,
-                    LOGIN_FORM,
-                    LOGIN_URL,
-                    LOGOUT_URL,
-                    GET_ACCESS_RIGHTS_URL,
-                ),
+                "Login" => login(self, ui, LOGIN_FORM),
                 "Nether Portals" => {
                     //let time = self.session_information.lock().unwrap().time.second.clone();
                     if self.session_information.lock().unwrap().is_logged_in {
@@ -185,15 +174,6 @@ impl eframe::App for BorkCraft {
                             &self.session_information,
                             &mut self.user_picked_filepath,
                             &self.login_form.username,
-                            GET_NETHER_PORTAL_IMAGE_NAMES_URL,
-                            GET_NETHER_PORTAL_IMAGES_URL,
-                            DELETE_IMAGE,
-                            DELETE_IMAGE_FROM_CLIENT,
-                            SAVE_NETHER_PORTAL,
-                            RETRIEVE_NETHER_PORTALS,
-                            ADD_NETHER_PORTAL,
-                            SAVE_IMAGE_URL,
-                            SAVE_IMAGE_DETAILS_URL,
                             ui,
                             ctx.clone(),
                         )

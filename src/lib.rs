@@ -108,6 +108,67 @@ pub fn match_out_nether_portal_keys_to_string2(
     }
 }
 
+mod url_tools {
+    pub enum Routes {
+        Login,
+        Logout,
+        AddNetherPortalText,
+        UpdateNetherPortalText,
+        SaveImageText,
+        SaveImage,
+        DeleteImage,
+        DeleteClientImage,
+        GetNetherPortalBunch,
+        GetNetherPortalImageNames,
+        GetNetherPortalImages,
+        AccessRights,
+        SessionTimeLeft,
+    }
+    impl Routes {
+        fn make(&self) -> String {
+            match self {
+                Routes::Login => "/login",
+                Routes::Logout => "/logout",
+                Routes::AddNetherPortalText => "/addnetherportaltext",
+                Routes::UpdateNetherPortalText => "/savenetherportaltextchanges",
+                Routes::SaveImageText => "/addnetherportalimagedetails",
+                Routes::SaveImage => "/saveimage",
+                Routes::DeleteImage => "/deleteimage",
+                Routes::DeleteClientImage => "/deleteimagefromclient",
+                Routes::GetNetherPortalBunch => "/getnetherportalstextinformation",
+                Routes::GetNetherPortalImages => "getnetherportalimages",
+                Routes::GetNetherPortalImageNames => "/getnetherportalimagenames",
+                Routes::AccessRights => "getaccessrights",
+                Routes::SessionTimeLeft => "sessiontimeleft",
+            }
+            .to_string()
+        }
+    }
+    pub struct Urls {
+        url: String,
+    }
+    impl Urls {
+        pub fn default(route: Routes) -> String {
+            //! Provides a url with default port number and dns ipv4 thingy
+            Urls::new(aws_public_dns(), text_server_port()).url(route)
+        }
+        pub fn new(public_dns: String, port: String) -> Urls {
+            Urls {
+                url: format!("{}:{}", public_dns, port),
+            }
+        }
+        pub fn url(&self, route: Routes) -> String {
+            format!("{}{}", self.url, route.make())
+        }
+    }
+    pub fn aws_public_dns() -> String {
+        format!("put ec2 aws ipv4/dns here!")
+    }
+    pub fn text_server_port() -> String {
+        format!("8334")
+    }
+}
+
 mod eframe_tools {
 
     pub mod egui_tools {

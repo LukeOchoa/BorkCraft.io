@@ -1,4 +1,4 @@
-use crate::borkcraft_app::WindowMessage;
+use crate::{borkcraft_app::WindowMessage, url_tools::*};
 use eframe::egui;
 use serde_derive::{Deserialize, Serialize};
 use std::{
@@ -40,12 +40,11 @@ struct Key {
 
 pub fn current_session_time(
     session_information: Arc<Mutex<SessionInformation>>,
-    session_time_left_url: &'static str,
     ctx: egui::Context,
 ) {
     thread::spawn(move || loop {
         // "http://localhost:8123/sessiontimeleft"
-        let result = ureq::post(session_time_left_url).send_json(Key {
+        let result = ureq::post(&Urls::default(Routes::SessionTimeLeft)).send_json(Key {
             key: session_information.lock().unwrap().key.clone(),
         });
 

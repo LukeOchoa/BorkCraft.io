@@ -8,6 +8,7 @@ use std::{
 use crate::{
     eframe_tools::modal_machines::{self, ModalMachineGear},
     thread_tools::ThreadPool,
+    url_tools::*,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -124,13 +125,12 @@ fn ask_server_for_image_list_for_netherportals(
 
 pub type ImageCollection = HashMap<String, ImageAndDetails>;
 
-pub fn get_nether_portal_images(
-    true_name: &String,
-    get_nether_portal_images_url: &'static str,
-    get_npin_url: &'static str,
-) -> Result<ImageCollection, String> {
-    let response =
-        ask_server_for_image_list_for_netherportals(true_name, get_npin_url.to_string())?;
+pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, String> {
+    //get_npin_url.to_string()
+    let response = ask_server_for_image_list_for_netherportals(
+        true_name,
+        Urls::default(Routes::GetNetherPortalImageNames),
+    )?;
     let list = response_to_image_details(response);
     let length = list.len();
     let pool = ThreadPool::new(length);
@@ -143,7 +143,12 @@ pub fn get_nether_portal_images(
         let tx = sender.clone();
         pool.execute(|| {
             println!("NAME OF THE IMAGE TO GET? -> |{}|", image_details.name);
-            get_image_from_server(tx, image_details, get_nether_portal_images_url.to_string());
+            // get_nether_portal_images_url.to_string()
+            get_image_from_server(
+                tx,
+                image_details,
+                Urls::default(Routes::GetNetherPortalImages),
+            );
         });
     }
 

@@ -1,9 +1,11 @@
 use crate::{
     borkcraft_app::{BorkCraft, SessionInformation, SessionTime},
     errors::client_errors::ErrorMessage,
-    //thread_tools::ThreadPool,
     to_vec8,
     ureq_did_request_go_through_f,
+    url_tools::Routes,
+    //thread_tools::ThreadPool,
+    url_tools::*,
     windows::client_windows::WindowMessage,
     ResponseResult,
 };
@@ -67,9 +69,6 @@ pub fn login(
     the_self: &mut BorkCraft,
     ui: &mut egui::Ui,
     const_login_form: &'static [&'static str],
-    const_login_url: &'static str,
-    const_logout_url: &'static str,
-    const_access_rights_url: &'static str,
 ) {
     egui::Grid::new(1).show(ui, |ui| {
         // If Client Is Logged In
@@ -83,9 +82,10 @@ pub fn login(
             }
             if ui.button("Login...!").clicked() {
                 // submit all login info to server
+                // const_login_url.to_string()
                 let did_request_go_through = submit_bytes_to_url(
                     to_vec8(&the_self.login_form),
-                    &const_login_url.to_string(),
+                    &Urls::default(Routes::Login),
                 );
                 // Check the Response
                 let result = ureq_did_request_go_through_f(
@@ -112,9 +112,10 @@ pub fn login(
                 }
 
                 // get access rights list from server
+                // const_access_rights_url.to_string()
                 let result = get_access_rights(
                     the_self.login_form.username.clone(),
-                    const_access_rights_url.to_string(),
+                    Urls::default(Routes::AccessRights),
                 );
                 match result {
                     Ok(response) => {
@@ -139,9 +140,10 @@ pub fn login(
             ui.label("Your already logged in!");
             if ui.button("logout...?").clicked() {
                 // Send Log-Out request
+                // const_logout_url.to_string()
                 let did_request_go_through = submit_bytes_to_url(
                     to_vec8(&the_self.login_form),
-                    &const_logout_url.to_string(),
+                    &Urls::default(Routes::Logout),
                 );
                 // Check if http request was sucessfull
                 let result = did_logout_succeed(did_request_go_through);
