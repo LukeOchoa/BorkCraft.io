@@ -126,7 +126,6 @@ fn ask_server_for_image_list_for_netherportals(
 pub type ImageCollection = HashMap<String, ImageAndDetails>;
 
 pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, String> {
-    //get_npin_url.to_string()
     let response = ask_server_for_image_list_for_netherportals(
         true_name,
         Urls::default(Routes::GetNetherPortalImageNames),
@@ -147,7 +146,7 @@ pub fn get_nether_portal_images(true_name: &String) -> Result<ImageCollection, S
             get_image_from_server(
                 tx,
                 image_details,
-                Urls::default(Routes::GetNetherPortalImages),
+                Urls::default_i(Routes::GetNetherPortalImage),
             );
         });
     }

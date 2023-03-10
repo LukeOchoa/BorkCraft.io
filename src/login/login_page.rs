@@ -72,6 +72,7 @@ pub fn login(
 ) {
     egui::Grid::new(1).show(ui, |ui| {
         // If Client Is Logged In
+
         if !the_self.session_information.lock().unwrap().is_logged_in {
             for form_element in const_login_form.iter() {
                 ui.label(form_element.clone());

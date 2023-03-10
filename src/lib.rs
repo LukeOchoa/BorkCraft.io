@@ -120,7 +120,7 @@ mod url_tools {
         DeleteClientImage,
         GetNetherPortalBunch,
         GetNetherPortalImageNames,
-        GetNetherPortalImages,
+        GetNetherPortalImage,
         AccessRights,
         SessionTimeLeft,
     }
@@ -136,10 +136,10 @@ mod url_tools {
                 Routes::DeleteImage => "/deleteimage",
                 Routes::DeleteClientImage => "/deleteimagefromclient",
                 Routes::GetNetherPortalBunch => "/getnetherportalstextinformation",
-                Routes::GetNetherPortalImages => "getnetherportalimages",
+                Routes::GetNetherPortalImage => "/getnetherportalimage",
                 Routes::GetNetherPortalImageNames => "/getnetherportalimagenames",
-                Routes::AccessRights => "getaccessrights",
-                Routes::SessionTimeLeft => "sessiontimeleft",
+                Routes::AccessRights => "/getaccessrights",
+                Routes::SessionTimeLeft => "/sessiontimeleft",
             }
             .to_string()
         }
@@ -152,9 +152,12 @@ mod url_tools {
             //! Provides a url with default port number and dns ipv4 thingy
             Urls::new(aws_public_dns(), text_server_port()).url(route)
         }
+        pub fn default_i(route: Routes) -> String {
+            Urls::new("localhost".to_string(), "1234".to_string()).url(route)
+        }
         pub fn new(public_dns: String, port: String) -> Urls {
             Urls {
-                url: format!("{}:{}", public_dns, port),
+                url: format!("http://{}:{}", public_dns, port),
             }
         }
         pub fn url(&self, route: Routes) -> String {
@@ -162,7 +165,9 @@ mod url_tools {
         }
     }
     pub fn aws_public_dns() -> String {
-        format!("put ec2 aws ipv4/dns here!")
+        // format!("put ec2 aws ipv4/dns here!")
+        format!("ec2-3-101-115-101.us-west-1.compute.amazonaws.com")
+        // format!("localhost")
     }
     pub fn text_server_port() -> String {
         format!("8334")

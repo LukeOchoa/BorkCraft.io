@@ -1181,7 +1181,7 @@ fn save_images(
                                 if let Some(_) = image_and_details.image_details.local_image {
                                     match save_image_to_serverx(
                                         image_and_details,
-                                        Urls::default(Routes::SaveImage),
+                                        Urls::default_i(Routes::SaveImage),
                                         //save_image_url.clone(),
                                         //save_image_details_url.clone(),
                                         Urls::default(Routes::SaveImageText),
@@ -1295,7 +1295,7 @@ fn delete_images_from_server(
                     // delete_image_from_client_url.to_string()
                     if let Err(err) = actually_delete_images_from_server(
                         image_and_details,
-                        Urls::default(Routes::DeleteImage),
+                        Urls::default_i(Routes::DeleteImage),
                         Urls::default(Routes::DeleteClientImage),
                     ) {
                         result.push(err);
@@ -1413,44 +1413,46 @@ fn add_nether_portal(
 ) {
     let _ctx1 = ctx.clone();
     let am_clone_bnp = Arc::clone(building_a_nether_portal);
-    generic_window.is_window_open = generic_window.display_closure(
-        &ctx,
-        "Add Images",
-        Box::new(move |ui, _ctx1| {
-            let headers = ["Nether", "OverWorld"];
-            let portal_field_names = vec![
-                "xcord",
-                "ycord",
-                "zcord",
-                "locale",
-                "owner",
-                "notes",
-                "true_name",
-            ];
+    ui.push_id(101010, |ui| {
+        generic_window.is_window_open = generic_window.display_closure(
+            &ctx,
+            "Add Images",
+            Box::new(move |ui, _ctx1| {
+                let headers = ["Nether", "OverWorld"];
+                let portal_field_names = vec![
+                    "xcord",
+                    "ycord",
+                    "zcord",
+                    "locale",
+                    "owner",
+                    "notes",
+                    "true_name",
+                ];
 
-            ui.horizontal_wrapped(|ui| {
-                let mut both = am_clone_bnp.lock().unwrap();
-                let string_nether_portal = &mut both.0;
-                headers.iter().for_each(|header| {
-                    ui.heading(make_rich(header.to_string(), Some(22.0)));
-                    ui.end_row();
-                    portal_field_names.iter().for_each(|field| {
-                        let string_portal = string_nether_portal.get_mut_ref(header).unwrap();
-                        ui.label(format!("{}: ->", field));
-                        ui.add(egui::TextEdit::singleline(
-                            string_portal.get_mut(field).unwrap(),
-                        ));
+                ui.horizontal_wrapped(|ui| {
+                    let mut both = am_clone_bnp.lock().unwrap();
+                    let string_nether_portal = &mut both.0;
+                    headers.iter().for_each(|header| {
+                        ui.heading(make_rich(header.to_string(), Some(22.0)));
                         ui.end_row();
+                        portal_field_names.iter().for_each(|field| {
+                            let string_portal = string_nether_portal.get_mut_ref(header).unwrap();
+                            ui.label(format!("{}: ->", field));
+                            ui.add(egui::TextEdit::singleline(
+                                string_portal.get_mut(field).unwrap(),
+                            ));
+                            ui.end_row();
+                        });
                     });
+                    if ui.button("Save Nether Portal").clicked() {
+                        both.1 = true;
+                    }
                 });
-                if ui.button("Save Nether Portal").clicked() {
-                    both.1 = true;
-                }
-            });
-        }),
-    );
-    generic_window.open_window_on_click(ui, "Add Nether Portals");
+            }),
+        );
 
+        generic_window.open_window_on_click(ui, "Add Nether Portals");
+    });
     let mut both = building_a_nether_portal.lock().unwrap();
 
     if both.1 {

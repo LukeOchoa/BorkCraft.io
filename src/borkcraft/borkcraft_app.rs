@@ -82,6 +82,7 @@ pub struct BorkCraft {
     pub selected_modal_page: String,
     pub modal_nether_portal: NetherPortalModal,
     pub all_nether_portal_information: Arc<Mutex<Option<NewNetherPortalInformation>>>,
+    pub counter: i32,
 }
 
 impl Default for BorkCraft {
@@ -100,6 +101,7 @@ impl Default for BorkCraft {
             //nether_portals: Arc::new(Mutex::new(NetherPortalInformation::default())),
             all_nether_portal_information: Arc::new(Mutex::new(None)),
             user_picked_filepath: None,
+            counter: 0,
         }
     }
 }
@@ -159,8 +161,8 @@ impl eframe::App for BorkCraft {
                 &mut self.selected_modal_page,
                 ui,
                 &vec!["Login".to_string(), "Nether Portals".to_string()],
-                7,
-            );
+                744,
+            );// 7
 
             match self.selected_modal_page.as_str() {
                 "Login" => login(self, ui, LOGIN_FORM),
