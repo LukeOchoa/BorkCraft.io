@@ -1621,7 +1621,6 @@ pub fn new_nether_portal(
                     ui,
                     error_message,
                 );
-                // display the information inside the datastructure to the ui
                 reset_netherportal_button(
                     some_nether_portal_information,
                     &some_nether_portal_information
@@ -1685,6 +1684,7 @@ pub fn new_nether_portal(
                 ui.end_row();
             });
             ui.horizontal(|ui| {
+                // display the information inside the datastructure to the ui
                 displayable_nether_portal(ui, error_message, some_nether_portal_information);
 
                 // if you can access client images, show some images...
